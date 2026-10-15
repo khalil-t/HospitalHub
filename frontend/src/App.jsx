@@ -10,6 +10,7 @@ import Register from '@/pages/Register';
 import Verify2FA from '@/pages/Verify2FA';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
+import AdmissionsOfficerDashboard from '@/pages/AdmissionsOfficerDashboard';
 
 const queryClient = new QueryClient();
 
@@ -50,7 +51,7 @@ const App = () => (
               />
               <Route
                 path="/AdmissionsOfficer-dashboard"
-                element={<Placeholder title="Admissions Officer Dashboard" />}
+                element={<AdmissionsOfficerDashboard />}
               />
               <Route
                 path="/DPO-dashboard"

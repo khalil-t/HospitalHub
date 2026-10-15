@@ -52,3 +52,246 @@ export const serviceApi = {
     return result;
   },
 };
+
+export const patientService = {
+  createPatient: async (patientData) => {
+    const response = await fetch(`${API_URL}/patients`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(patientData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      await auditService.logAction(
+        'PATIENT_CREATED',
+        'patient',
+        null,
+        `Failed to create patient: ${patientData.firstName} ${patientData.lastName} - ${error.message}`,
+      );
+      throw new Error(error.message || 'Échec de la création du patient');
+    }
+
+    const result = await response.json();
+
+    await auditService.logPatientCreated({
+      id: result.id,
+      firstName: patientData.firstName,
+      lastName: patientData.lastName,
+      ...patientData,
+    });
+
+    return result;
+  },
+
+  updatePatient: async (id, updateData) => {
+    const oldPatient = await this.getPatientById(id).catch(() => null);
+
+    const response = await fetch(`${API_URL}/patients/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updateData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      await auditService.logAction(
+        'PATIENT_UPDATED',
+        'patient',
+        id,
+        `Failed to update patient: ${error.message}`,
+      );
+      throw new Error(error.message || 'Échec de la mise à jour du patient');
+    }
+
+    const result = await response.json();
+
+    await auditService.logPatientUpdated(id, oldPatient, result);
+
+    return result;
+  },
+
+  searchPatients: async (searchCriteria) => {
+    const params = new URLSearchParams();
+
+    if (searchCriteria.firstName) {
+      params.append('firstName', searchCriteria.firstName);
+    }
+    if (searchCriteria.lastName) {
+      params.append('lastName', searchCriteria.lastName);
+    }
+
+    const url = `${API_URL}/patients/search?${params.toString()}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Échec de la recherche de patients');
+    }
+
+    await auditService.logPatientSearch(searchCriteria, data.length || 0);
+
+    return data;
+  },
+
+  getPatientsWithoutDoctorFromService: async (serviceId) => {
+    const response = await fetch(
+      `${API_URL}/patients/service/${serviceId}/no-doctor`,
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch patients');
+    }
+
+    await auditService.logAction(
+      'VIEW',
+      'patients_without_doctor',
+      null,
+      `Viewed patients without doctor for service: ${serviceId} - ${data.length} results`,
+    );
+
+    return data;
+  },
+
+  deletePatient: async (id) => {
+    const patient = await this.getPatientById(id).catch(() => null);
+
+    const response = await fetch(`${API_URL}/patients/${id}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      await auditService.logAction(
+        'PATIENT_DELETED',
+        'patient',
+        id,
+        `Failed to delete patient: ${error.message}`,
+      );
+      throw new Error(error.message || 'Échec de la suppression du patient');
+    }
+
+    if (patient) {
+      await auditService.logPatientDeleted(id, patient);
+    }
+  },
+
+  getAllPatientsByService: async (serviceId) => {
+    const url = `${API_URL}/patients/service/${serviceId}/all`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch patients by service');
+    }
+
+    await auditService.logAction(
+      'VIEW',
+      'patients_by_service',
+      null,
+      `Viewed all patients for service: ${serviceId} - ${data.length} results`,
+    );
+
+    return data;
+  },
+
+  addServiceToPatient: async (patientId, serviceId) => {
+    const response = await fetch(`${API_URL}/patients/${patientId}/services`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ serviceId }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      await auditService.logAction(
+        'PATIENT_UPDATED',
+        'patient_service',
+        patientId,
+        `Failed to add service ${serviceId} to patient ${patientId}: ${error.message}`,
+      );
+      throw new Error(
+        error.message ||
+          `Échec de l'ajout du service ${serviceId} au patient ${patientId}`,
+      );
+    }
+
+    const result = await response.json();
+
+    await auditService.logServiceAssignment(patientId, serviceId, 'Added');
+
+    return result;
+  },
+
+  removeServiceFromPatient: async (patientId, serviceId) => {
+    const response = await fetch(
+      `${API_URL}/patients/${patientId}/services/${serviceId}`,
+      {
+        method: 'DELETE',
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      await auditService.logAction(
+        'PATIENT_UPDATED',
+        'patient_service',
+        patientId,
+        `Failed to remove service ${serviceId} from patient ${patientId}: ${error.message}`,
+      );
+      throw new Error(
+        error.message ||
+          `Failed to remove service ${serviceId} from patient ${patientId}`,
+      );
+    }
+
+    await auditService.logServiceAssignment(patientId, serviceId, 'Removed');
+
+    return response.status === 204 ? null : await response.json();
+  },
+
+  fetchAllPatients: async () => {
+    const response = await fetch(`${API_URL}/patients`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to load patients');
+    }
+
+    await auditService.logAction(
+      'VIEW',
+      'all_patients',
+      null,
+      `Viewed all patients - ${data.length} results`,
+    );
+
+    return data;
+  },
+
+  getPatientById: async (id) => {
+    const response = await fetch(`${API_URL}/patients/${id}`);
+    if (response.ok) {
+      const patient = await response.json();
+      await auditService.logPatientViewed(
+        id,
+        `${patient.firstName} ${patient.lastName}`,
+      );
+      return patient;
+    }
+    return null;
+  },
+};
