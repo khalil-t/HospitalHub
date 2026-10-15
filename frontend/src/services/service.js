@@ -295,3 +295,204 @@ export const patientService = {
     return null;
   },
 };
+
+export const medicalRecordService = {
+  async updateMedicalRecord(id, recordData) {
+    const oldRecord = await this.getMedicalRecordById(id).catch(() => null);
+
+    const dataToSend = {
+      title: recordData.title || '',
+      content: recordData.content || '',
+      diagnosis: recordData.diagnosis || '',
+      allergies: recordData.allergies || [],
+      recordDate: recordData.recordDate,
+      responsibleDoctors: recordData.responsibleDoctors || [],
+      prescriptions: (recordData.prescriptions || []).map((prescription) => ({
+        id: prescription.id || undefined,
+        medication: prescription.medication || prescription.name || '',
+        dose: prescription.dose || prescription.dosage || '',
+        frequency: prescription.frequency || '',
+        duration: prescription.duration || '',
+      })),
+    };
+
+    const response = await fetch(`${API_URL}/medical-records/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(dataToSend),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      await auditService.logAction(
+        'RECORD_UPDATED',
+        'medical_record',
+        id,
+        `Failed to update medical record: ${error.message}`,
+      );
+      throw new Error(error.message || 'Failed to update medical record');
+    }
+
+    const result = await response.json();
+
+    await auditService.logMedicalRecordUpdated(id, oldRecord, result);
+
+    return result;
+  },
+
+  async createMedicalRecord(recordData) {
+    const response = await fetch(`${API_URL}/medical-records`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(recordData),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      await auditService.logAction(
+        'RECORD_CREATED',
+        'medical_record',
+        null,
+        `Failed to create medical record: ${recordData.title} - ${data.message}`,
+      );
+      throw new Error(data.message || 'Failed to create medical record');
+    }
+
+    await auditService.logMedicalRecordCreated({
+      id: data.id,
+      title: recordData.title,
+      patientId: recordData.patientId,
+    });
+
+    return data;
+  },
+
+  async getAllMedicalRecords() {
+    const response = await fetch(`${API_URL}/medical-records`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to load medical records');
+    }
+
+    await auditService.logAction(
+      'VIEW',
+      'medical_records_list',
+      null,
+      `Viewed all medical records - ${data.length} results`,
+    );
+
+    return data;
+  },
+
+  async getMedicalRecordByPatient(patientId) {
+    const response = await fetch(
+      `${API_URL}/medical-records/patient/${patientId}`,
+    );
+    const text = await response.text();
+
+    if (!text) {
+      throw new Error('Empty response from server');
+    }
+
+    const data = JSON.parse(text);
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to load medical record');
+    }
+
+    await auditService.logAction(
+      'RECORD_VIEWED',
+      'medical_record',
+      null,
+      `Viewed medical records for patient: ${patientId}`,
+    );
+
+    return data;
+  },
+
+  async getPatientsForDoctor(doctorId) {
+    const response = await fetch(
+      `${API_URL}/medical-records/doctor/${doctorId}/patients`,
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to load patients assigned to doctor');
+    }
+
+    await auditService.logAction(
+      'VIEW',
+      'doctor_patients',
+      doctorId,
+      `Viewed patients assigned to doctor: ${doctorId} - ${data.length} results`,
+    );
+
+    return data;
+  },
+
+  async getPatientsCountByDoctor(doctorId) {
+    const response = await fetch(
+      `${API_URL}/medical-records/doctor/${doctorId}/patients-count`,
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to get patients count');
+    }
+
+    await auditService.logAction(
+      'VIEW',
+      'doctor_patients_count',
+      doctorId,
+      `Viewed patient count for doctor: ${doctorId} - ${data} patients`,
+    );
+
+    return data;
+  },
+
+  async getMedicalRecordById(id) {
+    const response = await fetch(`${API_URL}/medical-records/${id}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Medical record not found');
+    }
+
+    await auditService.logMedicalRecordViewed(id, data.title);
+
+    return data;
+  },
+
+  async deleteMedicalRecord(id) {
+    const record = await this.getMedicalRecordById(id).catch(() => null);
+
+    const response = await fetch(`${API_URL}/medical-records/${id}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      await auditService.logAction(
+        'RECORD_DELETED',
+        'medical_record',
+        id,
+        `Failed to delete medical record: ${err.message}`,
+      );
+      throw new Error(err.message || 'Failed to delete medical record');
+    }
+
+    if (record) {
+      await auditService.logMedicalRecordDeleted(id, record);
+    }
+
+    return true;
+  },
+};

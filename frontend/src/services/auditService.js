@@ -18,4 +18,12 @@ export const auditService = {
   logPatientViewed: async () => {},
 
   logServiceAssignment: async () => {},
+
+  logMedicalRecordViewed: async () => {},
+
+  logMedicalRecordCreated: async () => {},
+
+  logMedicalRecordUpdated: async () => {},
+
+  logMedicalRecordDeleted: async () => {},
 };

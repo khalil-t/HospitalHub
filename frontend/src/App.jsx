@@ -11,6 +11,9 @@ import Verify2FA from '@/pages/Verify2FA';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import AdmissionsOfficerDashboard from '@/pages/AdmissionsOfficerDashboard';
+import DoctorDashboard from '@/pages/DoctorDashboard';
+import RadiologistDashboard from '@/pages/RadiologistDashboard';
+import LaboratoryTechnicianDashboard from '@/pages/LaboratoryTechnicianDashboard';
 
 const queryClient = new QueryClient();
 
@@ -43,7 +46,7 @@ const App = () => (
               />
               <Route
                 path="/doctor-dashboard"
-                element={<Placeholder title="Doctor Dashboard" />}
+                element={<DoctorDashboard />}
               />
               <Route
                 path="/ServiceChef-dashboard"
@@ -59,13 +62,11 @@ const App = () => (
               />
               <Route
                 path="/Radiologist-dashboard"
-                element={<Placeholder title="Radiologist Dashboard" />}
+                element={<RadiologistDashboard />}
               />
               <Route
                 path="/LaboratoryTechnician-dashboard"
-                element={
-                  <Placeholder title="Laboratory Technician Dashboard" />
-                }
+                element={<LaboratoryTechnicianDashboard />}
               />
 
               <Route
