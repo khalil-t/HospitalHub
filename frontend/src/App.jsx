@@ -1,22 +1,23 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { ThemeProvider } from 'next-themes';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { Toaster } from '@/components/ui/toaster';
-import { Toaster as Sonner } from '@/components/ui/sonner';
-import { AuthProvider } from '@/contexts/AuthContext';
-import Login from '@/pages/Login';
-import Register from '@/pages/Register';
-import Verify2FA from '@/pages/Verify2FA';
-import ForgotPassword from '@/pages/ForgotPassword';
-import ResetPassword from '@/pages/ResetPassword';
-import AdmissionsOfficerDashboard from '@/pages/AdmissionsOfficerDashboard';
-import DoctorDashboard from '@/pages/DoctorDashboard';
-import RadiologistDashboard from '@/pages/RadiologistDashboard';
-import LaboratoryTechnicianDashboard from '@/pages/LaboratoryTechnicianDashboard';
-import ExternalDoctorRequest from '@/pages/ExternalDoctorRequest';
-import ExternalDoctorManagement from '@/pages/ExternalDoctorManagement';
-import External from '@/pages/external';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { AuthProvider } from "@/contexts/AuthContext";
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import Verify2FA from "@/pages/Verify2FA";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
+import AdmissionsOfficerDashboard from "@/pages/AdmissionsOfficerDashboard";
+import DoctorDashboard from "@/pages/DoctorDashboard";
+import RadiologistDashboard from "@/pages/RadiologistDashboard";
+import LaboratoryTechnicianDashboard from "@/pages/LaboratoryTechnicianDashboard";
+import ExternalDoctorRequest from "@/pages/ExternalDoctorRequest";
+import ExternalDoctorManagement from "@/pages/ExternalDoctorManagement";
+import External from "@/pages/external";
+import DPODashboard from "@/pages/DPODashboard";
 
 const queryClient = new QueryClient();
 
@@ -47,10 +48,7 @@ const App = () => (
                 path="/admin-dashboard"
                 element={<Placeholder title="Admin Dashboard" />}
               />
-              <Route
-                path="/doctor-dashboard"
-                element={<DoctorDashboard />}
-              />
+              <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
               <Route
                 path="/ServiceChef-dashboard"
                 element={<Placeholder title="Service Chef Dashboard" />}
@@ -59,10 +57,7 @@ const App = () => (
                 path="/AdmissionsOfficer-dashboard"
                 element={<AdmissionsOfficerDashboard />}
               />
-              <Route
-                path="/DPO-dashboard"
-                element={<Placeholder title="DPO Dashboard" />}
-              />
+              <Route path="/DPO-dashboard" element={<DPODashboard />} />
               <Route
                 path="/Radiologist-dashboard"
                 element={<RadiologistDashboard />}

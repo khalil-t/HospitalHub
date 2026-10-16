@@ -10,6 +10,7 @@ import { ServicesModule } from './services/services.module';
 import { PatientsModule } from './patients/patients.module';
 import { MedicalRecordModule } from './medical-records/medical-record.module';
 import { ExternalDoctorsModule } from './external-doctors/external-doctors.module';
+import { AuditModule } from './audit/audit.module';
 import { AppMailerModule } from './mailer/mailer.module';
 
 @Module({
@@ -35,6 +36,7 @@ import { AppMailerModule } from './mailer/mailer.module';
     PatientsModule,
     MedicalRecordModule,
     ExternalDoctorsModule,
+    AuditModule,
     AppMailerModule,
   ],
   controllers: [AppController],
