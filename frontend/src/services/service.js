@@ -403,7 +403,9 @@ export const medicalRecordService = {
     const data = JSON.parse(text);
 
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to load medical record');
+      const error = new Error(data.message || 'Failed to load medical record');
+      error.status = response.status;
+      throw error;
     }
 
     await auditService.logAction(
@@ -494,5 +496,136 @@ export const medicalRecordService = {
     }
 
     return true;
+  },
+};
+
+const getAuthToken = () => localStorage.getItem('access_token');
+
+export const externalDoctorService = {
+  async createRequest(requestData) {
+    const response = await fetch(`${API_URL}/external-doctors/request`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestData),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to submit external doctor request');
+    }
+
+    return data;
+  },
+
+  async getRequests(status) {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    const response = await fetch(`${API_URL}/external-doctors/requests${query}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${getAuthToken()}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch external doctor requests: ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  async getRequest(id) {
+    const response = await fetch(`${API_URL}/external-doctors/requests/${id}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${getAuthToken()}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch external doctor request: ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  async reviewRequest(id, { approved, rejectionReason }) {
+    const response = await fetch(
+      `${API_URL}/external-doctors/requests/${id}/review`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ approved, rejectionReason }),
+      },
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const error = new Error(
+        data.message || `Failed to review request: ${response.status}`,
+      );
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  },
+
+  async checkExpiredAccounts() {
+    const response = await fetch(`${API_URL}/external-doctors/check-expired`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${getAuthToken()}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to check expired external doctor accounts');
+    }
+
+    return response.json();
+  },
+
+  async deactivateExpiredAccounts() {
+    const response = await fetch(`${API_URL}/external-doctors/deactivate-expired`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${getAuthToken()}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to deactivate expired external doctor accounts');
+    }
+
+    return response.json();
+  },
+
+  async getPatientsByEmail(email) {
+    const response = await fetch(
+      `${API_URL}/external-doctors/patients/${encodeURIComponent(email)}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch patients: ${response.status}`);
+    }
+
+    return response.json();
   },
 };

@@ -14,6 +14,9 @@ import AdmissionsOfficerDashboard from '@/pages/AdmissionsOfficerDashboard';
 import DoctorDashboard from '@/pages/DoctorDashboard';
 import RadiologistDashboard from '@/pages/RadiologistDashboard';
 import LaboratoryTechnicianDashboard from '@/pages/LaboratoryTechnicianDashboard';
+import ExternalDoctorRequest from '@/pages/ExternalDoctorRequest';
+import ExternalDoctorManagement from '@/pages/ExternalDoctorManagement';
+import External from '@/pages/external';
 
 const queryClient = new QueryClient();
 
@@ -69,9 +72,14 @@ const App = () => (
                 element={<LaboratoryTechnicianDashboard />}
               />
 
+              <Route path="/external" element={<External />} />
               <Route
-                path="/external"
-                element={<Placeholder title="External Doctor Portal" />}
+                path="/external-doctor-request"
+                element={<ExternalDoctorRequest />}
+              />
+              <Route
+                path="/external-doctor-management"
+                element={<ExternalDoctorManagement />}
               />
 
               <Route path="*" element={<Placeholder title="Not Found" />} />
