@@ -1,25 +1,11 @@
-import {
-  ArrayNotEmpty,
-  IsBoolean,
-  IsArray,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  IsUUID,
-} from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class ReviewExternalDoctorRequestDto {
-  @IsNotEmpty()
   @IsBoolean()
   approved: boolean;
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   rejectionReason?: string;
-
-  @IsOptional()
-  @IsArray()
-  @ArrayNotEmpty()
-  @IsUUID('all', { each: true })
-  patientIds?: string[];
 }

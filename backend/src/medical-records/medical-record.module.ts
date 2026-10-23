@@ -10,10 +10,17 @@ import { MedicalRecordService } from './medical-record.service';
 import { EncryptionService } from '../common/encryption.service';
 import { MedicalRecordAccessPolicy } from './policy/medical-record-access.policy';
 import { PatientsModule } from '../patients/patients.module';
+import { ExternalDoctorRequest } from '../external-doctors/entities/external-doctor-request.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([MedicalRecord, Prescriptions, Patient, User]),
+    TypeOrmModule.forFeature([
+      MedicalRecord,
+      Prescriptions,
+      Patient,
+      User,
+      ExternalDoctorRequest,
+    ]),
     forwardRef(() => PatientsModule),
   ],
   controllers: [MedicalRecordController],

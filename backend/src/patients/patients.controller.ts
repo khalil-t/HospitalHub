@@ -85,6 +85,7 @@ export class PatientsController {
     UserRole.SUPER_ADMIN,
     UserRole.SERVICE_HEAD,
     UserRole.INTERNAL_DOCTOR,
+    UserRole.EXTERNAL_DOCTOR,
     UserRole.ADMISSION_AGENT,
   )
   @Get(':id')

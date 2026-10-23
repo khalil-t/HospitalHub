@@ -1,10 +1,10 @@
 import {
   Injectable,
   NotFoundException,
-  ConflictException,
   BadRequestException,
   OnModuleInit,
   OnModuleDestroy,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -20,6 +20,7 @@ import { UsersRepository } from '../users/repositories/user.repository';
 import { PatientsRepository } from '../patients/repositories/PatientsRepository';
 import { Patient } from '../patients/entities/patient.entity';
 import { EncryptionService } from '../common/encryption.service';
+import { UserRole } from '../common/enums/user-role.enum';
 
 @Injectable()
 export class ExternalDoctorsService implements OnModuleInit, OnModuleDestroy {
@@ -74,21 +75,38 @@ export class ExternalDoctorsService implements OnModuleInit, OnModuleDestroy {
 
   async createRequest(
     createDto: CreateExternalDoctorRequestDto,
-  ): Promise<ExternalDoctorRequest> {
-    const existingRequest = await this.externalDoctorRequestRepository.findOne({
-      where: { email: createDto.email },
-    });
+  ): Promise<{ message: string }> {
+    const email = createDto.email?.toLowerCase().trim();
+
+    const existingRequest = await this.externalDoctorRequestRepository
+      .createQueryBuilder('request')
+      .where('LOWER(request.email) = :email', { email })
+      .getOne();
 
     if (existingRequest) {
-      throw new ConflictException('Une demande existe déjà avec cet email');
+      return { message: 'Request submitted successfully' };
+    }
+
+    const existingUser = await this.usersService.findByEmail(email);
+    if (existingUser) {
+      return { message: 'Request submitted successfully' };
     }
 
     const request = this.externalDoctorRequestRepository.create({
-      ...createDto,
+      firstName: createDto.firstName,
+      lastName: createDto.lastName,
+      email,
+      phoneNumber: createDto.phoneNumber,
+      specialization: createDto.specialization,
+      licenseNumber: createDto.licenseNumber,
+      institution: createDto.institution,
+      reasonForAccess: createDto.reasonForAccess,
+      requestedPatientNames: createDto.requestedPatientNames,
       status: 'pending',
     });
 
-    return this.externalDoctorRequestRepository.save(request);
+    await this.externalDoctorRequestRepository.save(request);
+    return { message: 'Request submitted successfully' };
   }
 
   async findAll(status?: string): Promise<ExternalDoctorRequest[]> {
@@ -103,6 +121,37 @@ export class ExternalDoctorsService implements OnModuleInit, OnModuleDestroy {
     }
 
     return query.orderBy('request.createdAt', 'DESC').getMany();
+  }
+
+  async findAllForIntake(status?: string): Promise<any[]> {
+    const query =
+      this.externalDoctorRequestRepository.createQueryBuilder('request');
+
+    query.leftJoinAndSelect('request.reviewedBy', 'reviewer');
+    query.leftJoinAndSelect('request.createdUser', 'user');
+
+    if (status) {
+      query.andWhere('request.status = :status', { status });
+    }
+
+    const requests = await query.orderBy('request.createdAt', 'DESC').getMany();
+
+    return requests.map((r) => ({
+      id: r.id,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      email: r.email,
+      phoneNumber: r.phoneNumber,
+      specialization: r.specialization,
+      institution: r.institution,
+      reasonForAccess: r.reasonForAccess,
+      requestedPatientNames: r.requestedPatientNames,
+      status: r.status,
+      rejectionReason: r.rejectionReason,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      accountExpiresAt: r.accountExpiresAt,
+    }));
   }
 
   async findOne(id: string): Promise<ExternalDoctorRequest> {
@@ -134,20 +183,10 @@ export class ExternalDoctorsService implements OnModuleInit, OnModuleDestroy {
     const reviewer = await this.usersRepository.findOneById(adminUser.id);
 
     if (!reviewer) {
-      const allUsers = await this.usersRepository.findAll();
-      const fallbackAdmin = allUsers.find((user) => user.isActive);
-
-      if (fallbackAdmin) {
-        request.reviewedBy = fallbackAdmin;
-      } else {
-        throw new BadRequestException(
-          'No valid admin users found in the system. ' +
-            'Please check your database and create an admin user first.',
-        );
-      }
-    } else {
-      request.reviewedBy = reviewer;
+      throw new BadRequestException('No valid admin users found in the system');
     }
+
+    request.reviewedBy = reviewer;
 
     request.status = reviewDto.approved ? 'approved' : 'rejected';
     request.rejectionReason = reviewDto.rejectionReason ?? undefined;
@@ -174,7 +213,10 @@ export class ExternalDoctorsService implements OnModuleInit, OnModuleDestroy {
     request.accountExpiresAt = expiresAt;
 
     const createUserDto = {
-      username: request.email.split('@')[0] + '_ext',
+      username:
+        request.email.split('@')[0] +
+        '_ext_' +
+        crypto.randomBytes(3).toString('hex'),
       email: request.email,
       fullName: `${request.firstName} ${request.lastName}`,
       password: tempPassword,
@@ -302,16 +344,17 @@ export class ExternalDoctorsService implements OnModuleInit, OnModuleDestroy {
 
   async addPatientForDoctor(doctorEmail: string, patientId: string) {
     const doctor = await this.externalDoctorRequestRepository.findOne({
-      where: { email: doctorEmail },
+      where: { email: doctorEmail.toLowerCase().trim() },
       relations: ['patients'],
     });
 
-    if (!doctor) throw new Error('Doctor not found');
-    if (doctor.status !== 'approved') throw new Error('Doctor not approved');
+    if (!doctor) throw new NotFoundException('Doctor not found');
+    if (doctor.status !== 'approved')
+      throw new BadRequestException('Doctor not approved');
 
-    const patient = await this.usersRepository.findOneById(patientId);
+    const patient = await this.patientsRepository.findOneById(patientId);
 
-    if (!patient) throw new Error('Patient not found');
+    if (!patient) throw new NotFoundException('Patient not found');
 
     if (!doctor.patients) {
       doctor.patients = [];
@@ -327,27 +370,53 @@ export class ExternalDoctorsService implements OnModuleInit, OnModuleDestroy {
     return doctor;
   }
 
+  async removePatientForDoctor(doctorEmail: string, patientId: string) {
+    const doctor = await this.externalDoctorRequestRepository.findOne({
+      where: { email: doctorEmail.toLowerCase().trim() },
+      relations: ['patients'],
+    });
+
+    if (!doctor) throw new NotFoundException('Doctor not found');
+
+    doctor.patients = (doctor.patients ?? []).filter(
+      (patient) => patient.id !== patientId,
+    );
+
+    await this.externalDoctorRequestRepository.save(doctor);
+
+    return { message: 'Patient unshared successfully' };
+  }
+
   async getMyPatients(doctorEmail: string) {
     const doctor = await this.externalDoctorRequestRepository.findOne({
-      where: { email: doctorEmail },
+      where: { email: doctorEmail.toLowerCase().trim() },
+      relations: ['patients'],
     });
 
     if (!doctor) {
       throw new NotFoundException('Doctor not found');
     }
 
-    if (!doctor.requestedPatientNames) {
-      return [];
+    if (doctor.status !== 'approved') {
+      throw new ForbiddenException('Access denied');
     }
 
-    const patientNames = doctor.requestedPatientNames
-      .split(',')
-      .map((n) => n.trim())
-      .filter(Boolean);
+    return (doctor.patients ?? []).map((patient) =>
+      this.decryptPatientData(patient),
+    );
+  }
 
-    const patients =
-      await this.patientsRepository.findByFullNames(patientNames);
-
-    return patients.map((patient) => this.decryptPatientData(patient));
+  async getPatientsByDoctorEmail(email: string, user: AuthenticatedUser) {
+    const roles = user.roles || [];
+    if (roles.includes(UserRole.SUPER_ADMIN)) {
+      return this.getMyPatients(email);
+    }
+    if (roles.includes(UserRole.EXTERNAL_DOCTOR)) {
+      if (user.email?.toLowerCase() !== email.toLowerCase()) {
+        throw new NotFoundException('Doctor not found');
+      }
+      return this.getMyPatients(email);
+    }
+    throw new ForbiddenException('Access denied');
   }
 }

@@ -62,4 +62,11 @@ export class PatientsRepository {
       .leftJoinAndSelect('patient.createdBy', 'createdBy')
       .getMany();
   }
+
+  async findOneById(id: string): Promise<Patient | null> {
+    return this.repo.findOne({
+      where: { id },
+      relations: ['services', 'createdBy'],
+    });
+  }
 }

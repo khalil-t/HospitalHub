@@ -6,6 +6,7 @@ import type { AuthenticatedUser } from '../../common/interfaces/authenticated-us
 import { MedicalRecord } from '../entities/medical-record.entity';
 import { Patient } from '../../patients/entities/patient.entity';
 import { PatientAccessPolicy } from '../../patients/policy/patient-access.policy';
+import { ExternalDoctorRequest } from '../../external-doctors/entities/external-doctor-request.entity';
 
 @Injectable()
 export class MedicalRecordAccessPolicy {
@@ -14,6 +15,8 @@ export class MedicalRecordAccessPolicy {
     private readonly recordRepo: Repository<MedicalRecord>,
     @InjectRepository(Patient)
     private readonly patientRepo: Repository<Patient>,
+    @InjectRepository(ExternalDoctorRequest)
+    private readonly externalDoctorRequestRepository: Repository<ExternalDoctorRequest>,
     private readonly patientAccessPolicy: PatientAccessPolicy,
   ) {}
 
@@ -25,6 +28,10 @@ export class MedicalRecordAccessPolicy {
 
     if (!record?.patient) return false;
 
+    if (this.hasRole(user, UserRole.EXTERNAL_DOCTOR)) {
+      return this.isSharedWithExternalDoctor(user, record.patient.id);
+    }
+
     return this.canViewPatient(user, record.patient.id);
   }
 
@@ -32,6 +39,9 @@ export class MedicalRecordAccessPolicy {
     user: AuthenticatedUser,
     patientId: string,
   ): Promise<boolean> {
+    if (this.hasRole(user, UserRole.EXTERNAL_DOCTOR)) {
+      return this.isSharedWithExternalDoctor(user, patientId);
+    }
     return this.canViewPatient(user, patientId);
   }
 
@@ -48,6 +58,9 @@ export class MedicalRecordAccessPolicy {
     user: AuthenticatedUser,
     patientId: string,
   ): Promise<boolean> {
+    if (this.hasRole(user, UserRole.EXTERNAL_DOCTOR)) {
+      return false;
+    }
     const patient = await this.findPatientScope(patientId);
     if (!patient) return false;
 
@@ -65,6 +78,9 @@ export class MedicalRecordAccessPolicy {
     });
 
     if (!record) return false;
+    if (this.hasRole(user, UserRole.EXTERNAL_DOCTOR)) {
+      return false;
+    }
     if (this.hasRole(user, UserRole.SUPER_ADMIN)) return true;
 
     return (
@@ -74,10 +90,16 @@ export class MedicalRecordAccessPolicy {
   }
 
   canDelete(user: AuthenticatedUser): boolean {
+    if (this.hasRole(user, UserRole.EXTERNAL_DOCTOR)) {
+      return false;
+    }
     return this.hasRole(user, UserRole.SUPER_ADMIN);
   }
 
   canListRecords(user: AuthenticatedUser): boolean {
+    if (this.hasRole(user, UserRole.EXTERNAL_DOCTOR)) {
+      return false;
+    }
     return (
       this.hasRole(user, UserRole.SUPER_ADMIN) ||
       this.hasRole(user, UserRole.INTERNAL_DOCTOR)
@@ -98,6 +120,22 @@ export class MedicalRecordAccessPolicy {
         'medicalRecords.responsibleDoctors',
       ],
     });
+  }
+
+  private async isSharedWithExternalDoctor(
+    user: AuthenticatedUser,
+    patientId: string,
+  ): Promise<boolean> {
+    if (!user.email) return false;
+    const request = await this.externalDoctorRequestRepository
+      .createQueryBuilder('request')
+      .leftJoinAndSelect('request.patients', 'patient')
+      .where('LOWER(request.email) = LOWER(:email)', { email: user.email })
+      .andWhere('request.status = :status', { status: 'approved' })
+      .getOne();
+
+    if (!request || !request.patients) return false;
+    return request.patients.some((p) => p.id === patientId);
   }
 
   private hasRole(user: AuthenticatedUser, role: UserRole): boolean {

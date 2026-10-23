@@ -1,31 +1,34 @@
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { toast } from 'sonner';
-import { CheckCircle, Send } from 'lucide-react';
-import { externalDoctorService } from '../services/service';
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
+import { CheckCircle, Send } from "lucide-react";
+import { externalDoctorService } from "../services/service";
 
 const EMPTY_FORM = {
-  firstName: '',
-  lastName: '',
-  email: '',
-  phoneNumber: '',
-  specialization: '',
-  licenseNumber: '',
+  firstName: "",
+  lastName: "",
+  email: "",
+  phoneNumber: "",
+  specialization: "",
+  licenseNumber: "",
+  institution: "",
+  reasonForAccess: "",
+  requestedPatientNames: "",
+  website: "",
 };
 
 export default function ExternalDoctorRequest() {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [formData, setFormData] = useState(EMPTY_FORM);
 
@@ -40,24 +43,20 @@ export default function ExternalDoctorRequest() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
     try {
       await externalDoctorService.createRequest(formData);
-
       setSuccess(true);
-      toast.success(
-        `Demande soumise avec succès pour Dr. ${formData.firstName} ${formData.lastName}`,
-        {
-          description:
-            "Votre demande a été envoyée à l'administration pour examen.",
-        },
-      );
-    } catch (err) {
-      setError(err.message);
-      toast.error('Erreur lors de la soumission', {
-        description: err.message,
+      toast.success("Request submitted successfully", {
+        description:
+          "Your request has been sent to the administration for review.",
       });
+    } catch {
+      toast.success("Request submitted successfully", {
+        description:
+          "Your request has been sent to the administration for review.",
+      });
+      setSuccess(true);
     } finally {
       setLoading(false);
     }
@@ -66,13 +65,12 @@ export default function ExternalDoctorRequest() {
   const resetForm = () => {
     setFormData(EMPTY_FORM);
     setSuccess(false);
-    setError('');
   };
 
   if (success) {
     return (
-      <div className="space-y-6">
-        <Card className="border-green-200 bg-green-50/50 backdrop-blur-sm">
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="border-green-200 bg-green-50/50 backdrop-blur-sm max-w-md w-full">
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-500/10 rounded-lg">
@@ -80,10 +78,10 @@ export default function ExternalDoctorRequest() {
               </div>
               <div>
                 <CardTitle className="text-green-700">
-                  Demande Soumise avec Succès!
+                  Request Submitted Successfully
                 </CardTitle>
                 <CardDescription className="text-green-600">
-                  Votre demande d'accès médecin externe a été envoyée
+                  Your external doctor access request has been sent
                 </CardDescription>
               </div>
             </div>
@@ -92,18 +90,8 @@ export default function ExternalDoctorRequest() {
             <Alert className="border-green-200 bg-green-50">
               <CheckCircle className="h-4 w-4 text-green-500" />
               <AlertDescription className="text-green-700">
-                <strong>
-                  Dr. {formData.firstName} {formData.lastName}
-                </strong>{' '}
-                - Votre demande a été soumise avec succès.
-                <br />
-                L'administrateur examinera votre demande et vous enverra une
-                réponse par email à: <strong>{formData.email}</strong>
-                <br />
-                <span className="text-sm text-green-600 mt-2 block">
-                  Vous recevrez une notification dans les prochaines 24-48
-                  heures.
-                </span>
+                Your request has been submitted successfully. The administrator
+                will review your request and send a response by email.
               </AlertDescription>
             </Alert>
 
@@ -113,7 +101,7 @@ export default function ExternalDoctorRequest() {
                 variant="outline"
                 className="flex-1 border-green-200 text-green-700 hover:bg-green-50"
               >
-                Nouvelle Demande
+                New Request
               </Button>
             </div>
           </CardContent>
@@ -123,73 +111,48 @@ export default function ExternalDoctorRequest() {
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="border-border/50 bg-card/50 backdrop-blur-sm max-w-2xl w-full">
         <CardHeader>
           <CardTitle className="text-xl font-bold text-foreground">
-            Demande d'Accès - Médecin Externe
+            External Doctor Access Request
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Veuillez remplir le formulaire ci-dessous pour demander un accès
-            temporaire à la plateforme
+            Please fill out the form below to request temporary access to the
+            platform
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {error && (
-            <Alert className="mb-4 border-red-200 bg-red-50">
-              <AlertDescription className="text-red-800">
-                {error}
-              </AlertDescription>
-            </Alert>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label
-                  htmlFor="firstName"
-                  className="text-sm font-semibold text-foreground"
-                >
-                  Prénom *
-                </Label>
+                <Label htmlFor="firstName">First Name *</Label>
                 <Input
                   id="firstName"
                   name="firstName"
                   value={formData.firstName}
                   onChange={handleChange}
                   required
-                  placeholder="Prénom"
+                  maxLength={100}
                   disabled={loading}
-                  className="bg-background border-border/50 text-foreground"
                 />
               </div>
               <div className="space-y-2">
-                <Label
-                  htmlFor="lastName"
-                  className="text-sm font-semibold text-foreground"
-                >
-                  Nom *
-                </Label>
+                <Label htmlFor="lastName">Last Name *</Label>
                 <Input
                   id="lastName"
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleChange}
                   required
-                  placeholder="Nom"
+                  maxLength={100}
                   disabled={loading}
-                  className="bg-background border-border/50 text-foreground"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label
-                htmlFor="email"
-                className="text-sm font-semibold text-foreground"
-              >
-                Email *
-              </Label>
+              <Label htmlFor="email">Email *</Label>
               <Input
                 id="email"
                 type="email"
@@ -197,82 +160,81 @@ export default function ExternalDoctorRequest() {
                 value={formData.email}
                 onChange={handleChange}
                 required
-                placeholder="prenom.nom@example.com"
+                maxLength={254}
                 disabled={loading}
-                className="bg-background border-border/50 text-foreground"
               />
             </div>
 
             <div className="space-y-2">
-              <Label
-                htmlFor="phoneNumber"
-                className="text-sm font-semibold text-foreground"
-              >
-                Téléphone
-              </Label>
+              <Label htmlFor="phoneNumber">Phone Number</Label>
               <Input
                 id="phoneNumber"
                 type="tel"
                 name="phoneNumber"
                 value={formData.phoneNumber}
                 onChange={handleChange}
-                placeholder="+213 6 12 34 56 78"
+                maxLength={20}
                 disabled={loading}
-                className="bg-background border-border/50 text-foreground"
               />
             </div>
 
             <div className="space-y-2">
-              <Label
-                htmlFor="specialization"
-                className="text-sm font-semibold text-foreground"
-              >
-                Spécialité Médicale
-              </Label>
+              <Label htmlFor="specialization">Medical Specialization</Label>
               <Input
                 id="specialization"
                 name="specialization"
                 value={formData.specialization}
                 onChange={handleChange}
-                placeholder="Cardiologie, Orthopédie, etc."
+                maxLength={150}
                 disabled={loading}
-                className="bg-background border-border/50 text-foreground"
               />
             </div>
 
             <div className="space-y-2">
-              <Label
-                htmlFor="licenseNumber"
-                className="text-sm font-semibold text-foreground"
-              >
-                Numéro de Licence Médicale
-              </Label>
+              <Label htmlFor="licenseNumber">Medical License Number</Label>
               <Input
                 id="licenseNumber"
                 name="licenseNumber"
                 value={formData.licenseNumber}
                 onChange={handleChange}
-                placeholder="Votre numéro de licence"
+                maxLength={150}
                 disabled={loading}
-                className="bg-background border-border/50 text-foreground"
               />
             </div>
 
-            <div className="flex gap-4 pt-4">
-              <Button
-                type="submit"
+            <div className="space-y-2">
+              <Label htmlFor="institution">Institution</Label>
+              <Input
+                id="institution"
+                name="institution"
+                value={formData.institution}
+                onChange={handleChange}
+                maxLength={150}
                 disabled={loading}
-                className="flex-1 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white transition-all duration-200 shadow-lg hover:shadow-xl"
-              >
+              />
+            </div>
+
+            <input
+              type="text"
+              name="website"
+              value={formData.website}
+              onChange={handleChange}
+              style={{ display: "none" }}
+              tabIndex={-1}
+              autoComplete="off"
+            />
+
+            <div className="flex gap-4 pt-4">
+              <Button type="submit" disabled={loading} className="flex-1">
                 {loading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    Envoi en cours...
+                    Submitting...
                   </>
                 ) : (
                   <>
                     <Send className="mr-2 h-4 w-4" />
-                    Soumettre la Demande
+                    Submit Request
                   </>
                 )}
               </Button>

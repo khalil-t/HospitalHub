@@ -7,7 +7,7 @@ import {
   HttpStatus,
   Get,
 } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { LoginDto } from './dto/login.dto';
@@ -21,7 +21,19 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Public()
-  @UseGuards(ThrottlerGuard, LocalAuthGuard)
+  @Throttle({
+    default: {
+      limit:
+        Number(process.env.THROTTLE_LOGIN_LIMIT) > 0
+          ? Number(process.env.THROTTLE_LOGIN_LIMIT)
+          : 5,
+      ttl:
+        Number(process.env.THROTTLE_LOGIN_TTL_MS) > 0
+          ? Number(process.env.THROTTLE_LOGIN_TTL_MS)
+          : 60000,
+    },
+  })
+  @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() loginDto: LoginDto, @CurrentUser() user: User) {

@@ -33,6 +33,10 @@ export default function ExternalDoctorManagement() {
   const [reviewLoading, setReviewLoading] = useState(false);
   const [dialogAction, setDialogAction] = useState('');
   const { user } = useAuth();
+  const roles = user?.roles || [];
+  const isSuperAdmin = roles.includes('super_admin');
+  const isAdmissionAgent = roles.includes('admission_agent');
+  const canView = isSuperAdmin || isAdmissionAgent;
 
   const fetchRequests = async () => {
     try {
@@ -49,12 +53,17 @@ export default function ExternalDoctorManagement() {
   };
 
   useEffect(() => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
+
     const loadRequests = async () => {
       await fetchRequests();
     };
 
     loadRequests();
-  }, []);
+  }, [canView]);
 
   const handleCheckExpired = async () => {
     try {
@@ -239,6 +248,31 @@ export default function ExternalDoctorManagement() {
     }
   };
 
+  if (!user) {
+    return (
+      <div className="p-6">
+        <Alert>
+          <AlertDescription>
+            Veuillez vous connecter pour accéder à cette page.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (!canView) {
+    return (
+      <div className="p-6">
+        <Alert>
+          <AlertDescription>
+            Vous n'avez pas les permissions nécessaires pour consulter cette
+            page.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -291,6 +325,7 @@ export default function ExternalDoctorManagement() {
             <Button variant="outline" className="text-sm">
               Rejetées ({requests.filter((r) => r.status === 'rejected').length})
             </Button>
+            {isSuperAdmin && (
             <Button
               onClick={handleCheckExpired}
               disabled={checkingExpired}
@@ -305,6 +340,7 @@ export default function ExternalDoctorManagement() {
                 'Vérifier les comptes expirés'
               )}
             </Button>
+            )}
           </div>
 
           {requests.map((request) => (
@@ -336,12 +372,14 @@ export default function ExternalDoctorManagement() {
                     <p className="text-gray-600 font-semibold">Institution</p>
                     <p>{request.institution || 'Non spécifiée'}</p>
                   </div>
-                  <div>
-                    <p className="text-gray-600 font-semibold">
-                      License Number
-                    </p>
-                    <p>{request.licenseNumber || 'Non fourni'}</p>
-                  </div>
+                  {isSuperAdmin && (
+                    <div>
+                      <p className="text-gray-600 font-semibold">
+                        License Number
+                      </p>
+                      <p>{request.licenseNumber || 'Non fourni'}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-gray-600 font-semibold">Demande Date</p>
                     <p>
@@ -380,7 +418,7 @@ export default function ExternalDoctorManagement() {
                   </Alert>
                 )}
 
-                {request.status === 'pending' && (
+                {request.status === 'pending' && isSuperAdmin && (
                   <div className="flex gap-2 pt-2">
                     <Button
                       onClick={() => openApproveDialog(request)}

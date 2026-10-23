@@ -11,10 +11,12 @@ import { EncryptionService } from '../common/encryption.service';
 import { MedicalRecordModule } from '../medical-records/medical-record.module';
 import { PatientsRepository } from './repositories/PatientsRepository';
 import { PatientAccessPolicy } from './policy/patient-access.policy';
+import { ExternalDoctorRequest } from '../external-doctors/entities/external-doctor-request.entity';
+import { MedicalRecord } from '../medical-records/entities/medical-record.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Patient]),
+    TypeOrmModule.forFeature([Patient, ExternalDoctorRequest, MedicalRecord]),
     ServicesModule,
     UsersModule,
     forwardRef(() => MedicalRecordModule),

@@ -4,10 +4,14 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  app.useBodyParser('json', { limit: '10kb' });
+  app.useBodyParser('urlencoded', { limit: '10kb', extended: true });
 
   app.enableCors({
     origin: '*',

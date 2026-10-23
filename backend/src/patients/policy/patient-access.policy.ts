@@ -4,12 +4,15 @@ import { Repository } from 'typeorm';
 import { UserRole } from '../../common/enums/user-role.enum';
 import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { Patient } from '../entities/patient.entity';
+import { ExternalDoctorRequest } from '../../external-doctors/entities/external-doctor-request.entity';
 
 @Injectable()
 export class PatientAccessPolicy {
   constructor(
     @InjectRepository(Patient)
     private readonly patientsRepository: Repository<Patient>,
+    @InjectRepository(ExternalDoctorRequest)
+    private readonly externalDoctorRequestRepository: Repository<ExternalDoctorRequest>,
   ) {}
 
   async canView(user: AuthenticatedUser, patientId: string): Promise<boolean> {
@@ -30,6 +33,10 @@ export class PatientAccessPolicy {
       return this.isInUserService(patient, user);
     }
 
+    if (this.hasRole(user, UserRole.EXTERNAL_DOCTOR)) {
+      return this.isSharedWithExternalDoctor(user, patientId);
+    }
+
     return false;
   }
 
@@ -42,6 +49,10 @@ export class PatientAccessPolicy {
     if (!patient) return false;
     if (this.hasRole(user, UserRole.SUPER_ADMIN)) return true;
     if (this.hasRole(user, UserRole.SERVICE_HEAD)) return false;
+
+    if (this.hasRole(user, UserRole.EXTERNAL_DOCTOR)) {
+      return false;
+    }
 
     if (
       this.hasRole(user, UserRole.ADMISSION_AGENT) ||
@@ -60,6 +71,9 @@ export class PatientAccessPolicy {
     const patient = await this.findPatientScope(patientId);
 
     if (!patient) return false;
+    if (this.hasRole(user, UserRole.EXTERNAL_DOCTOR)) {
+      return false;
+    }
     return this.hasRole(user, UserRole.SUPER_ADMIN);
   }
 
@@ -72,6 +86,9 @@ export class PatientAccessPolicy {
     if (!patient) return false;
     if (this.hasRole(user, UserRole.SUPER_ADMIN)) return true;
     if (this.hasRole(user, UserRole.SERVICE_HEAD)) return false;
+    if (this.hasRole(user, UserRole.EXTERNAL_DOCTOR)) {
+      return false;
+    }
 
     if (this.hasRole(user, UserRole.ADMISSION_AGENT)) {
       return this.isInUserService(patient, user);
@@ -89,6 +106,22 @@ export class PatientAccessPolicy {
         'medicalRecords.responsibleDoctors',
       ],
     });
+  }
+
+  private async isSharedWithExternalDoctor(
+    user: AuthenticatedUser,
+    patientId: string,
+  ): Promise<boolean> {
+    if (!user.email) return false;
+    const request = await this.externalDoctorRequestRepository
+      .createQueryBuilder('request')
+      .leftJoinAndSelect('request.patients', 'patient')
+      .where('LOWER(request.email) = LOWER(:email)', { email: user.email })
+      .andWhere('request.status = :status', { status: 'approved' })
+      .getOne();
+
+    if (!request || !request.patients) return false;
+    return request.patients.some((p) => p.id === patientId);
   }
 
   private hasRole(user: AuthenticatedUser, role: UserRole): boolean {

@@ -10,6 +10,7 @@ import {
   JoinTable,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { Patient } from '../../patients/entities/patient.entity';
 
 @Entity('external_doctor_requests')
 export class ExternalDoctorRequest {
@@ -43,6 +44,9 @@ export class ExternalDoctorRequest {
   @Column({ nullable: true, type: 'text' })
   requestedPatientNames?: string;
 
+  @Column({ nullable: true })
+  website?: string;
+
   @Column({ default: 'pending' })
   status: 'pending' | 'approved' | 'rejected';
 
@@ -66,11 +70,11 @@ export class ExternalDoctorRequest {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @ManyToMany(() => User)
+  @ManyToMany(() => Patient)
   @JoinTable({
     name: 'external_doctor_patients',
     joinColumn: { name: 'doctor_request_id', referencedColumnName: 'id' },
     inverseJoinColumn: { name: 'patient_id', referencedColumnName: 'id' },
   })
-  patients?: User[];
+  patients?: Patient[];
 }

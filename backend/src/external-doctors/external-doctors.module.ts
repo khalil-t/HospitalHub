@@ -7,9 +7,11 @@ import { UsersModule } from '../users/users.module';
 import { PatientsModule } from '../patients/patients.module';
 import { AppMailerModule } from '../mailer/mailer.module';
 import { EncryptionService } from '../common/encryption.service';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule,
     PatientsModule,
     TypeOrmModule.forFeature([ExternalDoctorRequest]),
     UsersModule,
