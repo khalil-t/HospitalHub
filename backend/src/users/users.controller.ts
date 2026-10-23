@@ -11,6 +11,9 @@ import {
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { RegisterAdminDto } from './dto/register-admin.dto';
+import { RegisterAdminResponseDto } from './dto/register-admin-response.dto';
+import { AdminExistsResponseDto } from './dto/admin-exists-response.dto';
 import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('users')
@@ -24,13 +27,15 @@ export class UsersController {
 
   @Public()
   @Post('register')
-  async register(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.registerAdmin(createUserDto);
+  async register(
+    @Body() registerAdminDto: RegisterAdminDto,
+  ): Promise<RegisterAdminResponseDto> {
+    return this.usersService.registerAdmin(registerAdminDto);
   }
 
   @Public()
   @Get('admin-exists')
-  async checkAdminExists() {
+  async checkAdminExists(): Promise<AdminExistsResponseDto> {
     return this.usersService.checkAdminExists();
   }
 

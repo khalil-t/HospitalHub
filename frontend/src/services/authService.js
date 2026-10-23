@@ -14,20 +14,26 @@ export const authService = {
 
     const data = await response.json();
 
-    localStorage.setItem('access_token', data.access_token);
-    localStorage.setItem('refresh_token', data.refresh_token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-
     if (!response.ok) {
-      const error = await response.json();
+      const message =
+        response.status === 429
+          ? 'Too many login attempts. Please try again later.'
+          : data.message || 'Invalid email or password';
       await auditService.logAction(
         'FAILED_LOGIN',
         'authentication',
         null,
-        `Failed login attempt for ${email}: ${error.message}`,
+        `Failed login attempt for ${email}: ${data.message || message}`,
       );
-      throw new Error(error.message || 'Login failed');
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
     }
+
+    localStorage.setItem('access_token', data.access_token);
+    localStorage.setItem('refresh_token', data.refresh_token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+
     return data;
   },
 
@@ -45,17 +51,25 @@ export const authService = {
       }),
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      const error = await response.json();
+      const message =
+        response.status === 404
+          ? 'Registration is closed. Please sign in with the existing administrator account.'
+          : data.message || 'Registration failed';
       await auditService.logAction(
         'USER_CREATED',
         'user',
         null,
-        `Failed registration for ${userData.email}: ${error.message}`,
+        `Failed registration for ${userData.email}: ${data.message || message}`,
       );
-      throw new Error(error.message || 'Registration failed');
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
     }
-    return await response.json();
+
+    return data;
   },
 
   async checkIfAdminExists() {

@@ -67,7 +67,11 @@ const Login = () => {
         navigate('/LaboratoryTechnician-dashboard', { replace: true });
       }
     } catch (error) {
-      toast.error(error.message || 'Login failed. Please check your credentials.');
+      const message =
+        error.status === 429
+          ? 'Too many login attempts. Please try again later.'
+          : error.message || 'Login failed. Please check your credentials.';
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }

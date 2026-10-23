@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Get,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { LoginDto } from './dto/login.dto';
@@ -20,7 +21,7 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Public()
-  @UseGuards(LocalAuthGuard)
+  @UseGuards(ThrottlerGuard, LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() loginDto: LoginDto, @CurrentUser() user: User) {

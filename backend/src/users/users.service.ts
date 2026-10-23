@@ -8,10 +8,14 @@ import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { RegisterAdminDto } from './dto/register-admin.dto';
+import { RegisterAdminResponseDto } from './dto/register-admin-response.dto';
+import { AdminExistsResponseDto } from './dto/admin-exists-response.dto';
 import * as bcrypt from 'bcrypt';
 import { RolesService } from '../roles/roles.service';
 import { Role } from '../roles/entities/role.entity';
 import { EncryptionService } from '../common/encryption.service';
+import { UserRole } from '../common/enums/user-role.enum';
 
 @Injectable()
 export class UsersService {
@@ -42,8 +46,16 @@ export class UsersService {
     return user;
   }
 
-  async registerAdmin(createUserDto: CreateUserDto): Promise<User> {
-    const { username, email, password, fullName, phoneNumber } = createUserDto;
+  async registerAdmin(
+    registerAdminDto: RegisterAdminDto,
+  ): Promise<RegisterAdminResponseDto> {
+    const userCount = await this.usersRepository.count();
+    if (userCount > 0) {
+      throw new NotFoundException('Registration is closed');
+    }
+
+    const { username, email, password, fullName, phoneNumber } =
+      registerAdminDto;
 
     const existingUser = await this.usersRepository.findOne({
       where: [{ username }, { email }],
@@ -54,12 +66,9 @@ export class UsersService {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const adminRole = await this.rolesService.findRoleByName('super_admin');
-    if (!adminRole) {
-      throw new NotFoundException(
-        'super_admin role not found. Please create it first.',
-      );
-    }
+    const adminRole = await this.rolesService.findRoleByName(
+      UserRole.SUPER_ADMIN,
+    );
 
     const userData: Partial<User> = {
       username,
@@ -74,18 +83,19 @@ export class UsersService {
 
     const user = this.usersRepository.create(userData);
     const savedUser = await this.usersRepository.save(user);
+    const decryptedUser = this.decryptUserData(savedUser);
 
-    return this.decryptUserData(savedUser);
+    return {
+      id: decryptedUser.id,
+      username: decryptedUser.username,
+      email: decryptedUser.email,
+      fullName: decryptedUser.fullName,
+    };
   }
 
-  async checkAdminExists(): Promise<{ exists: boolean }> {
-    const adminRole = await this.rolesService.findRoleByName('ADMIN');
-    if (!adminRole) {
-      return { exists: false };
-    }
-
+  async checkAdminExists(): Promise<AdminExistsResponseDto> {
     const adminUser = await this.usersRepository.findOne({
-      where: { roles: { name: 'super_admin' } },
+      where: { roles: { name: UserRole.SUPER_ADMIN } },
       relations: ['roles'],
     });
 

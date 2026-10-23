@@ -47,9 +47,13 @@ export const AuthProvider = ({ children }) => {
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(
-          errData.message || 'Login failed due to invalid credentials',
-        );
+        const message =
+          response.status === 429
+            ? 'Too many login attempts. Please try again later.'
+            : errData.message || 'Login failed due to invalid credentials';
+        const error = new Error(message);
+        error.status = response.status;
+        throw error;
       }
 
       const {

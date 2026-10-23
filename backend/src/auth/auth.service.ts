@@ -32,6 +32,10 @@ export class AuthService {
         return null;
       }
 
+      if (!user.isActive) {
+        return null;
+      }
+
       return user;
     } catch {
       return null;
@@ -92,6 +96,10 @@ export class AuthService {
       }
 
       const user = await this.usersService.findOne(userId);
+
+      if (!user.isActive) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
 
       if (!user.refreshToken || user.refreshToken !== refreshToken) {
         throw new UnauthorizedException('Invalid refresh token');

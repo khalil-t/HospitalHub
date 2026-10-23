@@ -32,7 +32,7 @@ const Register = () => {
     const checkAdmin = async () => {
       const exists = await authService.checkIfAdminExists();
       if (exists) {
-        navigate('/login');
+        navigate('/login', { replace: true });
         return;
       }
       setAdminExists(false);
@@ -92,6 +92,17 @@ const Register = () => {
 
       navigate('/login');
     } catch (error) {
+      if (error.status === 404) {
+        toast({
+          title: 'Registration Closed',
+          description:
+            'An administrator account already exists. Please sign in instead.',
+          variant: 'destructive',
+        });
+        navigate('/login', { replace: true });
+        return;
+      }
+
       toast({
         title: 'Registration Failed',
         description: error.message || 'Something went wrong. Please try again.',
@@ -116,10 +127,10 @@ const Register = () => {
             transition={{ duration: 0.8, ease: 'easeOut' }}
           >
             <h1 className="text-5xl font-bold mb-4 drop-shadow-lg">
-              Join MediSecure
+              Set Up MediSecure
             </h1>
             <p className="text-lg opacity-90 mb-6">
-              Create your account and start your secure journey.
+              Create the first administrator account for your hospital.
             </p>
           </Motion.div>
 
@@ -146,7 +157,7 @@ const Register = () => {
                 MediSecure
               </CardTitle>
               <CardDescription className="text-muted-foreground">
-                Create your account
+                Create the first administrator account
               </CardDescription>
             </CardHeader>
 
@@ -222,7 +233,9 @@ const Register = () => {
                   className="w-full py-2 text-lg rounded-xl shadow-md hover:shadow-lg transition-all"
                   disabled={isLoading}
                 >
-                  {isLoading ? 'Creating Account...' : 'Create Account'}
+                  {isLoading
+                    ? 'Creating Account...'
+                    : 'Create Administrator Account'}
                 </Button>
               </form>
 
