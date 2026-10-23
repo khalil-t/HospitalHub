@@ -182,7 +182,8 @@ export class ExternalDoctorsService implements OnModuleInit, OnModuleDestroy {
       roleIds: [],
     };
 
-    const newUser = await this.usersService.create(createUserDto);
+    const newUser =
+      await this.usersService.createExternalDoctorUser(createUserDto);
 
     return { user: newUser, tempPassword };
   }

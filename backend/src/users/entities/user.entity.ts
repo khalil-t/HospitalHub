@@ -7,6 +7,7 @@ import {
   JoinTable,
   CreateDateColumn,
 } from 'typeorm';
+import { Exclude } from 'class-transformer';
 import { Role } from '../../roles/entities/role.entity';
 import { Service } from '../../services/entities/department.entity';
 
@@ -24,6 +25,7 @@ export class User {
   @Column({ name: 'full_name' })
   fullName: string;
 
+  @Exclude()
   @Column({ name: 'hashed_password', nullable: true })
   hashedPassword: string;
 
@@ -41,6 +43,7 @@ export class User {
   })
   roles: Role[];
 
+  @Exclude()
   @Column({ name: 'refresh_token', type: 'varchar', nullable: true })
   refreshToken?: string | null;
 

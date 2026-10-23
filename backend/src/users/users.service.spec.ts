@@ -5,6 +5,7 @@ import { User } from './entities/user.entity';
 import { Role } from '../roles/entities/role.entity';
 import { RolesService } from '../roles/roles.service';
 import { EncryptionService } from '../common/encryption.service';
+import { ServicesService } from '../services/services.service';
 import { UserRole } from '../common/enums/user-role.enum';
 
 describe('UsersService bootstrap', () => {
@@ -15,16 +16,22 @@ describe('UsersService bootstrap', () => {
     save: jest.fn(),
   } as unknown as jest.Mocked<Repository<User>>;
   const rolesService = {
-    findRoleByName: jest.fn(),
+    getRoleEntityByName: jest.fn(),
+    findRoleEntitiesByIds: jest.fn(),
+    countSuperAdmins: jest.fn(),
   } as unknown as jest.Mocked<RolesService>;
   const encryptionService = {
     encrypt: jest.fn((value: string) => `encrypted:${value}`),
     decrypt: jest.fn((value: string) => value.replace('encrypted:', '')),
   } as unknown as jest.Mocked<EncryptionService>;
+  const servicesService = {
+    findOne: jest.fn(),
+  } as unknown as jest.Mocked<ServicesService>;
   const service = new UsersService(
     usersRepository,
     rolesService,
     encryptionService,
+    servicesService,
   );
 
   beforeEach(() => {
@@ -43,7 +50,7 @@ describe('UsersService bootstrap', () => {
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
 
-    expect(rolesService.findRoleByName.mock.calls).toHaveLength(0);
+    expect(rolesService.getRoleEntityByName.mock.calls).toHaveLength(0);
     expect(usersRepository.save.mock.calls).toHaveLength(0);
   });
 
@@ -63,7 +70,7 @@ describe('UsersService bootstrap', () => {
 
     usersRepository.count.mockResolvedValue(0);
     usersRepository.findOne.mockResolvedValue(null);
-    rolesService.findRoleByName.mockResolvedValue(adminRole);
+    rolesService.getRoleEntityByName.mockResolvedValue(adminRole);
     usersRepository.create.mockReturnValue(createdUser);
     usersRepository.save.mockResolvedValue(createdUser);
 
@@ -74,7 +81,7 @@ describe('UsersService bootstrap', () => {
       password: 'secret123',
     });
 
-    expect(rolesService.findRoleByName.mock.calls[0]).toEqual([
+    expect(rolesService.getRoleEntityByName.mock.calls[0]).toEqual([
       UserRole.SUPER_ADMIN,
     ]);
     const createArg = usersRepository.create.mock.calls[0][0] as Partial<User>;
@@ -97,7 +104,7 @@ describe('UsersService bootstrap', () => {
     await expect(service.checkAdminExists()).resolves.toEqual({
       exists: false,
     });
-    expect(rolesService.findRoleByName.mock.calls).toHaveLength(0);
+    expect(rolesService.getRoleEntityByName.mock.calls).toHaveLength(0);
 
     usersRepository.findOne.mockResolvedValue({ id: 'user-1' } as User);
 

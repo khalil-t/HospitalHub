@@ -14,7 +14,12 @@ import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { AssignPermissionsDto } from './dto/assign-permissions.dto';
+import { Roles } from '../common/decorators/roles.decorator';
+import { UserRole } from '../common/enums/user-role.enum';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 
+@Roles(UserRole.SUPER_ADMIN)
 @Controller('roles')
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
@@ -38,7 +43,6 @@ export class RolesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string) {
     await this.rolesService.remove(id);
-    return { message: 'Role deleted successfully' };
   }
 
   @Patch(':id')
@@ -46,25 +50,34 @@ export class RolesController {
     return this.rolesService.updateRole(id, updateRoleDto);
   }
 
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SERVICE_HEAD)
   @Post(':userId/assign/:roleId')
-  assignRole(@Param('userId') userId: string, @Param('roleId') roleId: string) {
-    return this.rolesService.assignRole(userId, roleId);
+  assignRole(
+    @Param('userId') userId: string,
+    @Param('roleId') roleId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.rolesService.assignRole(userId, roleId, actor);
   }
 
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SERVICE_HEAD)
   @Patch(':userId/update/:roleId')
   updateUserRole(
     @Param('userId') userId: string,
     @Param('roleId') roleId: string,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.rolesService.updateUserRole(userId, roleId);
+    return this.rolesService.updateUserRole(userId, roleId, actor);
   }
 
+  @Roles(UserRole.SUPER_ADMIN, UserRole.SERVICE_HEAD)
   @Delete(':userId/remove/:roleId')
   removeRoleFromUser(
     @Param('userId') userId: string,
     @Param('roleId') roleId: string,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.rolesService.removeRole(userId, roleId);
+    return this.rolesService.removeRole(userId, roleId, actor);
   }
 
   @Post('permissions')

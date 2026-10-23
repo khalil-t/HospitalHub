@@ -7,6 +7,7 @@ import {
   CreateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { UserRole } from '../../common/enums/user-role.enum';
 import { Permission } from './permissions.entity';
 
 @Entity('roles')
@@ -15,7 +16,7 @@ export class Role {
   id: string;
 
   @Column({ unique: true })
-  name: string;
+  name: UserRole;
 
   @Column({ nullable: true })
   description: string;

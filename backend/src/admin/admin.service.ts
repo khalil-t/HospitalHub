@@ -1,103 +1,54 @@
 import { Injectable } from '@nestjs/common';
 import { MailerService } from '@nestjs-modules/mailer';
-import * as bcrypt from 'bcrypt';
-import { User } from '../users/entities/user.entity';
-import { UsersRepository } from '../users/repositories/user.repository';
-import { ServicesRepository } from '../services/repositories/service.repository';
-import { EncryptionService } from '../common/encryption.service';
+import { UsersService } from '../users/users.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from '../users/dto/update-user.dto';
+import { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
+import {
+  UserResponseDto,
+  UserSummaryDto,
+} from '../users/dto/user-response.dto';
 
 @Injectable()
 export class AdminService {
   constructor(
-    private readonly usersRepository: UsersRepository,
+    private readonly usersService: UsersService,
     private readonly mailerService: MailerService,
-    private readonly servicesRepository: ServicesRepository,
-    private readonly encryptionService: EncryptionService,
   ) {}
 
-  private encryptUserData(userData: Partial<User>): Partial<User> {
-    const encrypted: Partial<User> = { ...userData };
-
-    if (encrypted.fullName) {
-      encrypted.fullName = this.encryptionService.encrypt(encrypted.fullName);
-    }
-
-    if (encrypted.phoneNumber) {
-      encrypted.phoneNumber = this.encryptionService.encrypt(
-        encrypted.phoneNumber,
-      );
-    }
-
-    return encrypted;
-  }
-
-  private decryptUserData(user: User): User {
-    if (user.fullName) {
-      user.fullName = this.encryptionService.decrypt(user.fullName);
-    }
-
-    if (user.phoneNumber) {
-      user.phoneNumber = this.encryptionService.decrypt(user.phoneNumber);
-    }
-
-    return user;
-  }
-
-  async addUser(form: CreateUserDto): Promise<User> {
-    const hashedPassword = await bcrypt.hash(form.password, 10);
-
-    const service = await this.servicesRepository.findById(form.serviceId);
-    if (!service) {
-      throw new Error('Service not found');
-    }
-
-    const encryptedData = this.encryptUserData({
-      username: form.username,
-      email: form.email,
-      fullName: form.fullName,
-      phoneNumber: form.phoneNumber,
-    });
-
-    const newUser = await this.usersRepository.create({
-      ...encryptedData,
-      hashedPassword,
-      service,
-    });
-
-    const decryptedUser = this.decryptUserData(newUser);
+  async addUser(
+    form: CreateUserDto,
+    actor: AuthenticatedUser,
+  ): Promise<UserResponseDto | UserSummaryDto> {
+    const createdUser = await this.usersService.create(form, actor);
 
     await this.mailerService.sendMail({
-      to: decryptedUser.email,
+      to: createdUser.email,
       subject: 'Your account is ready!',
-      text: `Hello ${decryptedUser.fullName}, your password is: ${form.password}`,
-      html: `<p>Hello <b>${decryptedUser.fullName}</b></p>
+      text: `Hello ${createdUser.fullName}, your password is: ${form.password}`,
+      html: `<p>Hello <b>${createdUser.fullName}</b></p>
              <p>Your password is: <b>${form.password}</b></p>
              <p>Please log in to access the platform.</p>`,
     });
 
-    return decryptedUser;
+    return createdUser;
   }
 
-  async getUsers(): Promise<User[]> {
-    const users = await this.usersRepository.findAll();
-    return users.map((user) => this.decryptUserData(user));
+  async getUsers(
+    actor: AuthenticatedUser,
+  ): Promise<Array<UserResponseDto | UserSummaryDto>> {
+    return this.usersService.findAll(undefined, undefined, actor);
   }
 
-  async updateUser(id: string, form: Partial<CreateUserDto>): Promise<User> {
-    const encryptedData = this.encryptUserData({
-      username: form.username,
-      email: form.email,
-      fullName: form.fullName,
-      phoneNumber: form.phoneNumber,
-    });
-
-    const updated = await this.usersRepository.update(id, encryptedData);
-
-    return this.decryptUserData(updated);
+  async updateUser(
+    id: string,
+    form: UpdateUserDto,
+    actor: AuthenticatedUser,
+  ): Promise<UserResponseDto | UserSummaryDto> {
+    return this.usersService.update(id, form, actor);
   }
 
-  async deleteUser(id: string): Promise<boolean> {
-    return this.usersRepository.delete(id);
+  async deleteUser(id: string, actor: AuthenticatedUser): Promise<void> {
+    await this.usersService.remove(id, actor);
   }
 }

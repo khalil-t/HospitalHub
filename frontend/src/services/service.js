@@ -715,6 +715,85 @@ export const roleService = {
   },
 };
 
+export const userService = {
+  async getUsers() {
+    const response = await fetch(`${API_URL}/users`, {
+      headers: adminHeaders(),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, 'Failed to fetch users');
+    }
+
+    return response.json();
+  },
+
+  async getUser(id) {
+    const response = await fetch(`${API_URL}/users/${id}`, {
+      headers: adminHeaders(),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, 'Failed to fetch user');
+    }
+
+    return response.json();
+  },
+
+  async createUser(userData) {
+    const response = await fetch(`${API_URL}/users`, {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, 'Failed to create user');
+    }
+
+    return response.json();
+  },
+
+  async updateUser(id, userData) {
+    const response = await fetch(`${API_URL}/users/${id}`, {
+      method: 'PATCH',
+      headers: adminHeaders(),
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, 'Failed to update user');
+    }
+
+    return response.json();
+  },
+
+  async deleteUser(id) {
+    const response = await fetch(`${API_URL}/users/${id}`, {
+      method: 'DELETE',
+      headers: adminHeaders(),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, 'Failed to delete user');
+    }
+
+    return true;
+  },
+
+  async getAssignableRoles() {
+    const response = await fetch(`${API_URL}/users/assignable-roles`, {
+      headers: adminHeaders(),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, 'Failed to fetch assignable roles');
+    }
+
+    return response.json();
+  },
+};
+
 export const adminService = {
   async getUsers() {
     const response = await fetch(`${API_URL}/admin/users`, {

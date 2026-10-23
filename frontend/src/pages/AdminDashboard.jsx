@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -56,7 +56,19 @@ import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useNavigate } from 'react-router-dom';
 import ExternalDoctorManagement from './ExternalDoctorManagement';
-import { adminService, roleService } from '@/services/service';
+import {
+  adminService,
+  roleService,
+  userService,
+} from '@/services/service';
+import { useAuth } from '@/contexts/useAuth';
+import {
+  USER_ROLE,
+  canAssignRole,
+  canManageUsers,
+  isServiceHead,
+  isSuperAdmin,
+} from '@/lib/roles';
 
 const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,45 +90,86 @@ const AdminDashboard = () => {
   });
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [assignableRoles, setAssignableRoles] = useState([]);
   const [services, setServices] = useState([]);
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
 
-  const loadRoles = async () => {
+  const currentRoles = currentUser?.roles || [];
+  const currentUserId = currentUser?.id;
+  const currentIsSuperAdmin = isSuperAdmin(currentRoles);
+  const currentIsServiceHead = isServiceHead(currentRoles);
+  const currentCanManageUsers = canManageUsers(currentRoles);
+
+  const loadRoles = useCallback(async () => {
+    if (!currentIsSuperAdmin) {
+      setRoles([]);
+      return;
+    }
+
     try {
       const data = await roleService.getAllRoles();
-      setRoles(data);
+      setRoles(Array.isArray(data) ? data : []);
     } catch (error) {
       toast.error(error.message || 'Failed to load roles');
     }
-  };
+  }, [currentIsSuperAdmin]);
 
-  const loadServices = async () => {
+  const loadAssignableRoles = useCallback(async () => {
+    if (!currentCanManageUsers) {
+      return;
+    }
+
+    try {
+      const data = await userService.getAssignableRoles();
+      setAssignableRoles(Array.isArray(data) ? data : []);
+    } catch (error) {
+      toast.error(error.message || 'Failed to load assignable roles');
+    }
+  }, [currentCanManageUsers]);
+
+  const loadServices = useCallback(async () => {
     try {
       const data = await adminService.getServices();
       setServices(Array.isArray(data) ? data : []);
     } catch (error) {
       toast.error(error.message || 'Failed to load services');
     }
-  };
+  }, []);
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
+    if (!currentCanManageUsers) {
+      return;
+    }
+
     try {
-      const data = await adminService.getUsers();
-      setUsers(Array.isArray(data) ? data : data.users || []);
+      const data = await userService.getUsers();
+      setUsers(Array.isArray(data) ? data : []);
     } catch (error) {
       toast.error(error.message || 'Failed to load users');
     }
-  };
+  }, [currentCanManageUsers]);
 
   useEffect(() => {
+    if (!currentCanManageUsers) {
+      return;
+    }
+
     const initializeDashboard = async () => {
       await loadRoles();
+      await loadAssignableRoles();
       await loadServices();
       await loadUsers();
     };
 
     initializeDashboard();
-  }, []);
+  }, [
+    currentCanManageUsers,
+    loadAssignableRoles,
+    loadRoles,
+    loadServices,
+    loadUsers,
+  ]);
 
   const handleCreateRole = async (event) => {
     event.preventDefault();
@@ -172,7 +225,7 @@ const AdminDashboard = () => {
 
     if (
       !userForm.fullName ||
-      !userForm.email ||
+      (!editingItem && (!userForm.username || !userForm.email)) ||
       (!editingItem && !userForm.password)
     ) {
       toast.error('Please fill all required fields');
@@ -190,9 +243,13 @@ const AdminDashboard = () => {
       if (userForm.serviceId) payload.serviceId = userForm.serviceId;
       if (userForm.phoneNumber) payload.phoneNumber = userForm.phoneNumber;
 
-      await (editingItem
-        ? adminService.updateUser(editingItem.id, payload)
-        : adminService.createUser(payload));
+      if (editingItem) {
+        await userService.updateUser(editingItem.id, payload);
+      } else if (currentIsSuperAdmin) {
+        await adminService.createUser(payload);
+      } else {
+        await userService.createUser(payload);
+      }
 
       toast.success(
         editingItem ? 'User updated successfully' : 'User added successfully',
@@ -224,7 +281,9 @@ const AdminDashboard = () => {
         email: '',
         password: '',
         phoneNumber: '',
-        serviceId: '',
+        serviceId: currentIsServiceHead
+          ? currentUser?.service?.id || ''
+          : '',
       });
     }
 
@@ -233,7 +292,7 @@ const AdminDashboard = () => {
 
   const openRoleModal = (user) => {
     setSelectedUser(user);
-    setSelectedRole(user.roles?.[0]?.id || '');
+    setSelectedRole('');
     setIsRoleModalOpen(true);
   };
 
@@ -270,8 +329,8 @@ const AdminDashboard = () => {
 
   const deleteUser = async (id) => {
     try {
-      await adminService.deleteUser(id);
-      setUsers(users.filter((user) => user.id !== id));
+      await userService.deleteUser(id);
+      await loadUsers();
       toast.success('User deleted successfully');
     } catch (error) {
       toast.error(error.message || 'Something went wrong');
@@ -292,6 +351,32 @@ const AdminDashboard = () => {
     }
   };
 
+  const targetHasSuperAdmin = (target) =>
+    (target.roles || []).some(
+      (role) => role.name === USER_ROLE.SUPER_ADMIN,
+    );
+
+  const canManageTargetUser = (target) =>
+    Boolean(target?.id) &&
+    target.id !== currentUserId &&
+    (currentIsSuperAdmin || !targetHasSuperAdmin(target));
+
+  const canModifyTargetRoles = (target) =>
+    currentCanManageUsers &&
+    canManageTargetUser(target) &&
+    (currentIsSuperAdmin || !targetHasSuperAdmin(target));
+
+  const availableRolesForSelectedUser = assignableRoles.filter(
+    (role) =>
+      !(selectedUser?.roles || []).some(
+        (assignedRole) => assignedRole.id === role.id,
+      ),
+  );
+
+  const visibleServices = currentIsSuperAdmin
+    ? services
+    : services.filter((service) => service.id === currentUser?.service?.id);
+
   const getStatusIcon = (status) => {
     switch (status) {
       case 'Active':
@@ -304,6 +389,26 @@ const AdminDashboard = () => {
         return <Clock className="h-4 w-4" />;
     }
   };
+
+  if (!currentCanManageUsers) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-6">
+        <Card className="w-full max-w-md border-border/50 bg-card/50 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle>Access denied</CardTitle>
+            <CardDescription>
+              You do not have permission to access user management.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => navigate('/login')}>
+              Back to login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
@@ -328,7 +433,9 @@ const AdminDashboard = () => {
             <div className="text-right">
               <p className="font-semibold text-foreground">Admin User</p>
               <p className="text-sm text-muted-foreground">
-                System Administrator
+                {currentIsSuperAdmin
+                ? 'System Administrator'
+                : 'Service Head'}
               </p>
             </div>
             <ThemeToggle />
@@ -343,7 +450,11 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div
+          className={`grid grid-cols-1 gap-6 ${
+            currentIsSuperAdmin ? 'md:grid-cols-4' : 'md:grid-cols-3'
+          }`}
+        >
           <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:shadow-lg transition-all duration-300 group">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-sm font-semibold text-foreground/80">
@@ -359,7 +470,9 @@ const AdminDashboard = () => {
               </div>
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <TrendingUp className="h-3 w-3 text-green-500" />
-                +{users.filter((u) => u.status === 'Active').length} active
+                {currentIsSuperAdmin
+                  ? `+${users.filter((u) => u.isActive !== false).length} active`
+                  : 'Own service'}
               </div>
             </CardContent>
           </Card>
@@ -367,7 +480,7 @@ const AdminDashboard = () => {
           <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:shadow-lg transition-all duration-300 group">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-sm font-semibold text-foreground/80">
-                Active Roles
+                {currentIsSuperAdmin ? 'Active Roles' : 'Assignable Roles'}
               </CardTitle>
               <div className="p-2 bg-blue-500/10 rounded-lg group-hover:scale-110 transition-transform">
                 <Shield className="h-4 w-4 text-blue-500" />
@@ -375,9 +488,13 @@ const AdminDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-blue-500 mb-1">
-                {roles.length}
+                {currentIsSuperAdmin
+                  ? roles.length
+                  : assignableRoles.length}
               </div>
-              <p className="text-xs text-muted-foreground">System roles</p>
+              <p className="text-xs text-muted-foreground">
+                {currentIsSuperAdmin ? 'System roles' : 'Roles you can assign'}
+              </p>
             </CardContent>
           </Card>
 
@@ -392,27 +509,31 @@ const AdminDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-green-500 mb-1">
-                {services.length}
+                {currentIsSuperAdmin
+                  ? services.length
+                  : visibleServices.length}
               </div>
               <p className="text-xs text-muted-foreground">
-                Hospital services
+                {currentIsSuperAdmin ? 'Hospital services' : 'Your service'}
               </p>
             </CardContent>
           </Card>
 
-          <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:shadow-lg transition-all duration-300 group">
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-sm font-semibold text-foreground/80">
-                Pending Requests
-              </CardTitle>
-              <div className="p-2 bg-purple-500/10 rounded-lg group-hover:scale-110 transition-transform">
-                <Clock className="h-4 w-4 text-purple-500" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">Awaiting review</p>
-            </CardContent>
-          </Card>
+          {currentIsSuperAdmin && (
+            <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:shadow-lg transition-all duration-300 group">
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <CardTitle className="text-sm font-semibold text-foreground/80">
+                  Pending Requests
+                </CardTitle>
+                <div className="p-2 bg-purple-500/10 rounded-lg group-hover:scale-110 transition-transform">
+                  <Clock className="h-4 w-4 text-purple-500" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">Awaiting review</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <Tabs
@@ -442,13 +563,15 @@ const AdminDashboard = () => {
               <Stethoscope className="mr-2 h-4 w-4" />
               Services
             </TabsTrigger>
-            <TabsTrigger
-              value="requests"
-              className="data-[state=active]:bg-purple-500 data-[state=active]:text-white rounded-lg transition-all duration-200"
-            >
-              <Clock className="mr-2 h-4 w-4" />
-              Requests
-            </TabsTrigger>
+            {currentIsSuperAdmin && (
+              <TabsTrigger
+                value="requests"
+                className="data-[state=active]:bg-purple-500 data-[state=active]:text-white rounded-lg transition-all duration-200"
+              >
+                <Clock className="mr-2 h-4 w-4" />
+                Requests
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="users" className="space-y-6">
@@ -489,64 +612,80 @@ const AdminDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {users.map((user) => (
-                    <div
-                      key={user.id}
-                      className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-background/50 hover:bg-secondary/30 transition-all duration-200 group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div
-                          className={`p-3 rounded-lg ${
-                            user.status === 'Active'
-                              ? 'bg-green-500/10 text-green-500'
-                              : 'bg-gray-400/10 text-gray-500'
-                          }`}
-                        >
-                          {getStatusIcon(user.status)}
+                  {users.map((user) => {
+                    const roleNames = (user.roles || []).map(
+                      (role) => role.name,
+                    );
+                    const displayRole = roleNames.join(', ') || 'No role';
+                    const targetIsSuperAdmin = roleNames.includes(
+                      USER_ROLE.SUPER_ADMIN,
+                    );
+
+                    return (
+                      <div
+                        key={user.id}
+                        className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-background/50 hover:bg-secondary/30 transition-all duration-200 group"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div
+                            className={`p-3 rounded-lg ${
+                              user.isActive === false
+                                ? 'bg-gray-400/10 text-gray-500'
+                                : 'bg-green-500/10 text-green-500'
+                            }`}
+                          >
+                            {getStatusIcon(
+                              user.isActive === false ? 'Inactive' : 'Active',
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-foreground">
+                              {user.fullName}
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              {user.email ||
+                                user.service?.name ||
+                                'No service assigned'}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-semibold text-foreground">
-                            {user.fullName}
-                          </h3>
-                          <p className="text-sm text-muted-foreground">
-                            {user.email}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <Badge
-                          className={`px-3 py-1 ${
-                            user.role === 'Admin'
-                              ? 'bg-red-500/20 text-red-500 border-red-500/20'
-                              : user.role === 'Moderator'
-                                ? 'bg-blue-500/20 text-blue-500 border-blue-500/20'
+                        <div className="flex items-center gap-4">
+                          <Badge
+                            className={`px-3 py-1 ${
+                              targetIsSuperAdmin
+                                ? 'bg-red-500/20 text-red-500 border-red-500/20'
                                 : 'bg-green-500/20 text-green-500 border-green-500/20'
-                          }`}
-                        >
-                          {user.role}
-                        </Badge>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="rounded-lg hover:bg-secondary"
-                            onClick={() => openUserModal(user)}
+                            }`}
                           >
-                            <Edit className="h-4 w-4 text-primary" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="rounded-lg hover:bg-red-100"
-                            onClick={() => deleteUser(user.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+                            {displayRole}
+                          </Badge>
+                          <div className="flex items-center gap-2">
+                            {canManageTargetUser(user) && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="rounded-lg hover:bg-secondary"
+                                  onClick={() => openUserModal(user)}
+                                >
+                                  <Edit className="h-4 w-4 text-primary" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="rounded-lg hover:bg-red-100"
+                                  onClick={() => deleteUser(user.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </>
+                            )}
+                            <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -558,67 +697,78 @@ const AdminDashboard = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-2xl font-bold text-foreground">
-                      Roles Management
+                      {currentIsSuperAdmin
+                        ? 'Roles Management'
+                        : 'Role Assignments'}
                     </CardTitle>
                     <CardDescription className="text-muted-foreground">
-                      Create and manage system roles
+                      {currentIsSuperAdmin
+                        ? 'Create and manage system roles'
+                        : 'Assign roles to users in your service'}
                     </CardDescription>
                   </div>
-                  <Button
-                    className="bg-blue-500 text-white"
-                    onClick={() => setIsCreateRoleModalOpen(true)}
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Role
-                  </Button>
+                  {currentIsSuperAdmin && (
+                    <Button
+                      className="bg-blue-500 text-white"
+                      onClick={() => setIsCreateRoleModalOpen(true)}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Role
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
 
               <CardContent>
-                <div className="space-y-4 mb-8">
-                  <h3 className="text-lg font-semibold text-foreground mb-4">
-                    System Roles
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {roles.map((role) => (
-                      <Card
-                        key={role.id}
-                        className="border-border/50 bg-background/50"
-                      >
-                        <CardHeader className="pb-3">
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="text-base font-semibold">
-                              {role.name}
-                            </CardTitle>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => deleteRole(role.id)}
-                              className="text-red-500 hover:bg-red-100 h-8 w-8"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-sm text-muted-foreground">
-                            {role.description || `${role.name} role permissions`}
-                          </p>
-                          <div className="mt-3">
-                            <Badge variant="outline" className="text-xs">
-                              {
-                                users.filter((user) =>
-                                  user.roles?.some((r) => r.id === role.id),
-                                ).length
-                              }{' '}
-                              users
-                            </Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                {currentIsSuperAdmin && (
+                  <div className="space-y-4 mb-8">
+                    <h3 className="text-lg font-semibold text-foreground mb-4">
+                      System Roles
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {roles.map((role) => (
+                        <Card
+                          key={role.id}
+                          className="border-border/50 bg-background/50"
+                        >
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-base font-semibold">
+                                {role.name}
+                              </CardTitle>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => deleteRole(role.id)}
+                                className="text-red-500 hover:bg-red-100 h-8 w-8"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-sm text-muted-foreground">
+                              {role.description ||
+                                `${role.name} role permissions`}
+                            </p>
+                            <div className="mt-3">
+                              <Badge variant="outline" className="text-xs">
+                                {
+                                  users.filter((user) =>
+                                    user.roles?.some(
+                                      (r) => r.id === role.id,
+                                    ),
+                                  ).length
+                                }{' '}
+                                users
+                              </Badge>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-foreground mb-4">
@@ -635,17 +785,21 @@ const AdminDashboard = () => {
                             {user.fullName}
                           </h3>
                           <p className="text-sm text-muted-foreground">
-                            {user.email}
+                            {user.email ||
+                              user.service?.name ||
+                              'No service assigned'}
                           </p>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openRoleModal(user)}
-                          className="text-primary hover:bg-primary/10"
-                        >
-                          + Add Role
-                        </Button>
+                        {canModifyTargetRoles(user) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openRoleModal(user)}
+                            className="text-primary hover:bg-primary/10"
+                          >
+                            + Add Role
+                          </Button>
+                        )}
                       </div>
 
                       {user.roles && user.roles.length > 0 ? (
@@ -662,15 +816,18 @@ const AdminDashboard = () => {
                                 <span className="text-sm font-medium">
                                   {role.name}
                                 </span>
-                                <button
-                                  onClick={() =>
-                                    removeRoleFromUser(user.id, role.id)
-                                  }
-                                  className="ml-1 hover:text-red-500 transition-colors"
-                                  title="Remove role"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
+                                {canModifyTargetRoles(user) &&
+                                  canAssignRole(currentRoles, role.name) && (
+                                    <button
+                                      onClick={() =>
+                                        removeRoleFromUser(user.id, role.id)
+                                      }
+                                      className="ml-1 hover:text-red-500 transition-colors"
+                                      title="Remove role"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  )}
                               </div>
                             ))}
                           </div>
@@ -691,9 +848,11 @@ const AdminDashboard = () => {
             <ServicesManagement />
           </TabsContent>
 
-          <TabsContent value="requests" className="space-y-6">
-            <ExternalDoctorManagement />
-          </TabsContent>
+          {currentIsSuperAdmin && (
+            <TabsContent value="requests" className="space-y-6">
+              <ExternalDoctorManagement />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
@@ -733,7 +892,7 @@ const AdminDashboard = () => {
                   setUserForm({ ...userForm, username: e.target.value })
                 }
                 placeholder="Enter username"
-                required
+                required={!editingItem}
               />
             </div>
 
@@ -746,7 +905,6 @@ const AdminDashboard = () => {
                   setUserForm({ ...userForm, phoneNumber: e.target.value })
                 }
                 placeholder="Enter Phone Number"
-                required
               />
             </div>
 
@@ -760,7 +918,7 @@ const AdminDashboard = () => {
                   setUserForm({ ...userForm, email: e.target.value })
                 }
                 placeholder="Enter email address"
-                required
+                required={!editingItem}
               />
             </div>
 
@@ -790,7 +948,7 @@ const AdminDashboard = () => {
                   <SelectValue placeholder="Select service department" />
                 </SelectTrigger>
                 <SelectContent>
-                  {services.map((service) => (
+                  {visibleServices.map((service) => (
                     <SelectItem key={service.id} value={service.id}>
                       <div className="flex items-center gap-2">
                         <span>{service.name}</span>
@@ -815,7 +973,10 @@ const AdminDashboard = () => {
                 </h4>
                 <div className="flex items-center gap-3">
                   <Badge className="bg-blue-500/20 text-blue-600">
-                    {services.find((s) => s.id === userForm.serviceId)?.name}
+                    {
+                      visibleServices.find((s) => s.id === userForm.serviceId)
+                        ?.name
+                    }
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
@@ -828,7 +989,7 @@ const AdminDashboard = () => {
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
               <p className="text-sm text-blue-800 dark:text-blue-200">
                 <strong>Note:</strong> After creating the user, go to the Roles
-                tab to assign specific roles like DOCTOR, ....etc.
+                tab to assign roles you are allowed to delegate.
               </p>
             </div>
 
@@ -863,11 +1024,12 @@ const AdminDashboard = () => {
                 onChange={(e) =>
                   setNewRoleForm({ ...newRoleForm, name: e.target.value })
                 }
-                placeholder="e.g., NURSE, PHARMACIST, TECHNICIAN"
+                placeholder="e.g., radiologist"
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Use UPPERCASE format (e.g., DOCTOR, ADMIN, NURSE)
+                Use a policy role name such as super_admin, service_head,
+                internal_doctor, radiologist, or laboratory_technician.
               </p>
             </div>
 
@@ -889,9 +1051,9 @@ const AdminDashboard = () => {
 
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
               <p className="text-sm text-blue-800 dark:text-blue-200">
-                <strong>Tip:</strong> Available roles include: super_admin,
-                internal_doctor, service_head, admission_agent,
-                verification_clerk, RADIOLOGIST, LAB_TECHNICIAN
+                <strong>Tip:</strong> Role names are fixed by policy. Create
+                only missing policy roles, such as radiologist or
+                laboratory_technician.
               </p>
             </div>
 
@@ -922,13 +1084,18 @@ const AdminDashboard = () => {
               {selectedUser ? `Assign Role to ${selectedUser.fullName}` : 'Assign Role'}
             </DialogTitle>
             <DialogDescription>
-              Select a role for the user from the list below.
+              Select a role you are allowed to delegate to this user.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {roles.map((role) => (
+              {availableRolesForSelectedUser.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No additional roles are available for this user.
+                </p>
+              )}
+              {availableRolesForSelectedUser.map((role) => (
                 <div key={role.id} className="flex items-center space-x-2">
                   <input
                     type="radio"
@@ -956,6 +1123,7 @@ const AdminDashboard = () => {
               <Button
                 onClick={handleChangeRole}
                 className="bg-primary text-white"
+                disabled={!selectedRole}
               >
                 Save
               </Button>

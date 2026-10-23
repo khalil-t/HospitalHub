@@ -5,10 +5,11 @@ import { UsersRepository } from './repositories/user.repository';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { RolesModule } from '../roles/roles.module';
+import { ServicesModule } from '../services/services.module';
 import { EncryptionService } from '../common/encryption.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User]), RolesModule],
+  imports: [TypeOrmModule.forFeature([User]), RolesModule, ServicesModule],
   controllers: [UsersController],
   providers: [UsersService, UsersRepository, EncryptionService],
   exports: [UsersRepository, UsersService, TypeOrmModule],

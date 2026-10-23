@@ -1,25 +1,30 @@
 import {
   IsArray,
   IsEmail,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   Length,
   Matches,
+  MinLength,
 } from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
+  @IsNotEmpty()
   username: string;
 
   @IsString()
+  @IsNotEmpty()
   fullName: string;
 
   @IsEmail()
+  @IsNotEmpty()
   email: string;
 
-  @IsOptional()
   @IsString()
+  @MinLength(6)
   password: string;
 
   @IsUUID()
@@ -27,6 +32,7 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsArray()
+  @IsUUID('4', { each: true })
   roleIds?: string[];
 
   @IsOptional()
