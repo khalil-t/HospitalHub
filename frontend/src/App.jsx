@@ -18,6 +18,7 @@ import ExternalDoctorRequest from "@/pages/ExternalDoctorRequest";
 import ExternalDoctorManagement from "@/pages/ExternalDoctorManagement";
 import External from "@/pages/external";
 import DPODashboard from "@/pages/DPODashboard";
+import AdminDashboard from "@/pages/AdminDashboard";
 
 const queryClient = new QueryClient();
 
@@ -46,7 +47,7 @@ const App = () => (
 
               <Route
                 path="/admin-dashboard"
-                element={<Placeholder title="Admin Dashboard" />}
+                element={<AdminDashboard />}
               />
               <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
               <Route

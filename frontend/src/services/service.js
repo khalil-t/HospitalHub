@@ -629,3 +629,155 @@ export const externalDoctorService = {
     return response.json();
   },
 };
+
+const adminHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${getAuthToken()}`,
+});
+
+const readError = async (response, fallback) => {
+  const data = await response.json().catch(() => ({}));
+  const error = new Error(data.message || fallback);
+  error.status = response.status;
+  return error;
+};
+
+export const roleService = {
+  async getAllRoles() {
+    const response = await fetch(`${API_URL}/roles`, {
+      headers: adminHeaders(),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, 'Failed to fetch roles');
+    }
+
+    return response.json();
+  },
+
+  async createRole(roleData) {
+    const response = await fetch(`${API_URL}/roles`, {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify(roleData),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, `Error: ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  async deleteRole(roleId) {
+    const response = await fetch(`${API_URL}/roles/${roleId}`, {
+      method: 'DELETE',
+      headers: adminHeaders(),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, `Failed to delete role (${response.status})`);
+    }
+
+    return true;
+  },
+
+  async assignRole(userId, roleId) {
+    const response = await fetch(
+      `${API_URL}/roles/${userId}/assign/${roleId}`,
+      {
+        method: 'POST',
+        headers: adminHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      throw await readError(response, 'Failed to assign role');
+    }
+
+    return response.json();
+  },
+
+  async removeRole(userId, roleId) {
+    const response = await fetch(
+      `${API_URL}/roles/${userId}/remove/${roleId}`,
+      {
+        method: 'DELETE',
+        headers: adminHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      throw await readError(response, 'Failed to remove role');
+    }
+
+    return response.json();
+  },
+};
+
+export const adminService = {
+  async getUsers() {
+    const response = await fetch(`${API_URL}/admin/users`, {
+      headers: adminHeaders(),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, 'Failed to fetch users');
+    }
+
+    return response.json();
+  },
+
+  async createUser(userData) {
+    const response = await fetch(`${API_URL}/admin/new_med`, {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, `Error: ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  async updateUser(id, userData) {
+    const response = await fetch(`${API_URL}/admin/users/${id}`, {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, `Failed to update user (${response.status})`);
+    }
+
+    return response.json();
+  },
+
+  async deleteUser(id) {
+    const response = await fetch(`${API_URL}/admin/users/${id}`, {
+      method: 'DELETE',
+      headers: adminHeaders(),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, 'Failed to delete user');
+    }
+
+    return true;
+  },
+
+  async getServices() {
+    const response = await fetch(`${API_URL}/services`, {
+      headers: adminHeaders(),
+    });
+
+    if (!response.ok) {
+      throw await readError(response, 'Failed to fetch services');
+    }
+
+    return response.json();
+  },
+};

@@ -4,20 +4,17 @@ import {
   Post,
   Body,
   Query,
-  UseGuards,
   Request,
   Ip,
 } from '@nestjs/common';
 import { AuditService } from './audit.service';
 import { LogAction } from './entities/audit-log.entity';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from '../users/entities/user.entity';
 
 @Controller('audit')
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
-  @UseGuards(JwtAuthGuard)
   @Post('log')
   async logAction(
     @Body()
@@ -56,7 +53,6 @@ export class AuditController {
     }
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('logs')
   async getLogs(
     @Query('page') page: string = '1',
@@ -78,13 +74,11 @@ export class AuditController {
     return this.auditService.getLogs(parseInt(page), parseInt(limit), filters);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('dashboard')
   async getSecurityDashboard() {
     return this.auditService.getSecurityDashboard();
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('threats')
   async getThreats(
     @Query('page') page: string = '1',
@@ -93,13 +87,11 @@ export class AuditController {
     return this.auditService.getThreats(parseInt(page), parseInt(limit));
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('statistics')
   async getStatistics() {
     return this.auditService.getStatistics();
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('export')
   async exportLogs(
     @Query('format') format: string = 'json',

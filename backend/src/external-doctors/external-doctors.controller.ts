@@ -4,7 +4,6 @@ import {
   Post,
   Body,
   Param,
-  UseGuards,
   Request,
   Query,
   BadRequestException,
@@ -12,8 +11,7 @@ import {
 import { ExternalDoctorsService } from './external-doctors.service';
 import { CreateExternalDoctorRequestDto } from './dto/create-external-doctor-request.dto';
 import { ReviewExternalDoctorRequestDto } from './dto/review-external-doctor-request.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
@@ -24,27 +22,25 @@ export class ExternalDoctorsController {
     private readonly externalDoctorsService: ExternalDoctorsService,
   ) {}
 
+  @Public()
   @Post('request')
   async createRequest(@Body() createDto: CreateExternalDoctorRequestDto) {
     return this.externalDoctorsService.createRequest(createDto);
   }
 
   @Get('requests')
-  @UseGuards(JwtAuthGuard)
   @Roles(UserRole.SUPER_ADMIN)
   async getAllRequests(@Query('status') status?: string) {
     return this.externalDoctorsService.findAll(status);
   }
 
   @Get('requests/:id')
-  @UseGuards(JwtAuthGuard)
   @Roles(UserRole.SUPER_ADMIN)
   async getRequest(@Param('id') id: string) {
     return this.externalDoctorsService.findOne(id);
   }
 
   @Post('requests/:id/review')
-  @UseGuards(JwtAuthGuard)
   @Roles(UserRole.SUPER_ADMIN)
   async reviewRequest(
     @Param('id') id: string,
@@ -59,13 +55,11 @@ export class ExternalDoctorsController {
   }
 
   @Post('check-expired')
-  @UseGuards(JwtAuthGuard)
   async checkExpiredAccounts() {
     return this.externalDoctorsService.checkExpiredAccounts();
   }
 
   @Post('deactivate-expired')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
   async deactivateExpired() {
     return this.externalDoctorsService.deactivateExpiredAccounts();
