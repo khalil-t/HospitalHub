@@ -10,6 +10,7 @@ import { UsersModule } from '../users/users.module';
 import { EncryptionService } from '../common/encryption.service';
 import { MedicalRecordModule } from '../medical-records/medical-record.module';
 import { PatientsRepository } from './repositories/PatientsRepository';
+import { PatientAccessPolicy } from './policy/patient-access.policy';
 
 @Module({
   imports: [
@@ -19,7 +20,12 @@ import { PatientsRepository } from './repositories/PatientsRepository';
     forwardRef(() => MedicalRecordModule),
   ],
   controllers: [PatientsController],
-  providers: [PatientsService, EncryptionService, PatientsRepository],
+  providers: [
+    PatientsService,
+    EncryptionService,
+    PatientsRepository,
+    PatientAccessPolicy,
+  ],
   exports: [PatientsRepository, PatientsService, TypeOrmModule],
 })
 export class PatientsModule {}

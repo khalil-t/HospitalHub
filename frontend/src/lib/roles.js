@@ -57,3 +57,13 @@ export const isServiceHead = (roles = []) =>
 
 export const canManageUsers = (roles = []) =>
   isSuperAdmin(roles) || isServiceHead(roles);
+
+export const getPatientActionPermissions = (roles = []) => ({
+  canEdit:
+    isSuperAdmin(roles) ||
+    hasRole(roles, USER_ROLE.ADMISSION_AGENT) ||
+    hasRole(roles, USER_ROLE.INTERNAL_DOCTOR),
+  canDelete: isSuperAdmin(roles),
+  canManageServices:
+    isSuperAdmin(roles) || hasRole(roles, USER_ROLE.ADMISSION_AGENT),
+});

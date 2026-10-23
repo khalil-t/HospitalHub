@@ -2,7 +2,6 @@ import {
   IsString,
   IsOptional,
   IsDateString,
-  IsUUID,
   Length,
   Matches,
 } from 'class-validator';
@@ -34,8 +33,4 @@ export class UpdatePatientDto {
     message: 'Phone number format is invalid',
   })
   phoneNumber?: string;
-
-  @IsOptional()
-  @IsUUID()
-  serviceId?: string;
 }

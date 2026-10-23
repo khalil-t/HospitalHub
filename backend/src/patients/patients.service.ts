@@ -14,7 +14,13 @@ import { UsersService } from '../users/users.service';
 import { MedicalRecordService } from '../medical-records/medical-record.service';
 import { UserRole } from '../common/enums/user-role.enum';
 import { EncryptionService } from '../common/encryption.service';
-import { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
+import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
+import { PatientListItemDto } from './dto/patient-list-item.dto';
+import { PatientDetailDto } from './dto/patient-detail.dto';
+import { toPatientDetail, toPatientListItem } from './patient-response.mapper';
+import { PatientAccessPolicy } from './policy/patient-access.policy';
+
+const MAX_PATIENT_LIST_RESULTS = 100;
 
 @Injectable()
 export class PatientsService {
@@ -25,6 +31,7 @@ export class PatientsService {
     private usersService: UsersService,
     private medicalRecordService: MedicalRecordService,
     private encryptionService: EncryptionService,
+    private patientAccessPolicy: PatientAccessPolicy,
   ) {}
 
   private encryptPatientData(patient: Partial<Patient>): void {
@@ -62,7 +69,10 @@ export class PatientsService {
     return patient;
   }
 
-  async create(createPatientDto: CreatePatientDto): Promise<Patient> {
+  async create(
+    createPatientDto: CreatePatientDto,
+    actor: AuthenticatedUser,
+  ): Promise<PatientListItemDto> {
     const {
       firstName,
       lastName,
@@ -70,12 +80,11 @@ export class PatientsService {
       gender,
       serviceId,
       phoneNumber,
-      createdById,
       nationalNumber,
       insuranceNumber,
     } = createPatientDto;
 
-    const createdByUser = await this.usersService.findOne(createdById);
+    const createdByUser = await this.usersService.findOne(actor.id);
 
     const services: any[] = [];
 
@@ -104,49 +113,59 @@ export class PatientsService {
       patientId: savedPatient.id,
     });
 
-    return savedPatient;
+    return toPatientListItem(savedPatient);
   }
 
-  async findAll(searchDto?: SearchPatientsDto): Promise<Patient[]> {
+  async findAll(searchDto?: SearchPatientsDto): Promise<PatientListItemDto[]> {
     const query = this.patientRepository
       .createQueryBuilder('patient')
-      .leftJoinAndSelect('patient.services', 'services')
-      .leftJoinAndSelect('patient.createdBy', 'createdBy')
-      .leftJoinAndSelect('patient.medicalRecords', 'medicalRecords');
+      .select(['patient.id', 'patient.firstName', 'patient.lastName'])
+      .distinct(true)
+      .leftJoin('patient.services', 'services');
 
     if (searchDto) {
       this.applySearchFilters(query, searchDto);
     }
 
-    const patients = await query.orderBy('patient.lastName', 'ASC').getMany();
+    const patients = await query
+      .orderBy('patient.lastName', 'ASC')
+      .take(MAX_PATIENT_LIST_RESULTS)
+      .getMany();
 
-    return patients.map((patient) => this.decryptPatientData(patient));
+    return patients.map(toPatientListItem);
   }
 
   async findByService(
-    serviceId: string,
+    serviceId: string | undefined,
     searchDto?: SearchPatientsDto,
-  ): Promise<Patient[]> {
+  ): Promise<PatientListItemDto[]> {
+    if (!serviceId) {
+      return [];
+    }
+
     const query = this.patientRepository
       .createQueryBuilder('patient')
-      .leftJoinAndSelect('patient.services', 'services')
-      .leftJoinAndSelect('patient.createdBy', 'createdBy')
-      .leftJoinAndSelect('patient.medicalRecords', 'medicalRecords')
+      .select(['patient.id', 'patient.firstName', 'patient.lastName'])
+      .innerJoin('patient.services', 'services')
       .where('services.id = :serviceId', { serviceId });
 
     if (searchDto) {
       this.applySearchFilters(query, searchDto);
     }
 
-    const patients = await query.orderBy('patient.lastName', 'ASC').getMany();
-    return patients.map((patient) => this.decryptPatientData(patient));
+    const patients = await query
+      .orderBy('patient.lastName', 'ASC')
+      .take(MAX_PATIENT_LIST_RESULTS)
+      .getMany();
+    return patients.map(toPatientListItem);
   }
 
   async findPatientsWithoutDoctorFromService(
     serviceId: string,
-  ): Promise<Patient[]> {
+  ): Promise<PatientListItemDto[]> {
     const patients = await this.patientRepository
       .createQueryBuilder('patient')
+      .select(['patient.id', 'patient.firstName', 'patient.lastName'])
       .innerJoin('patient.services', 'service')
       .where('service.id = :serviceId', { serviceId })
       .andWhere((qb) => {
@@ -167,9 +186,10 @@ export class PatientsService {
         return 'NOT EXISTS ' + subQuery;
       })
       .orderBy('patient.lastName', 'ASC')
+      .take(MAX_PATIENT_LIST_RESULTS)
       .getMany();
 
-    return patients.map((patient) => this.decryptPatientData(patient));
+    return patients.map(toPatientListItem);
   }
 
   async findOne(id: string): Promise<Patient> {
@@ -184,27 +204,33 @@ export class PatientsService {
     return this.decryptPatientData(patient);
   }
 
-  async findOneWithAccessCheck(
+  async findOneForActor(
     id: string,
     user: AuthenticatedUser,
-  ): Promise<Patient> {
+  ): Promise<PatientDetailDto> {
     const patient = await this.findOne(id);
+    const canView = await this.patientAccessPolicy.canView(user, id);
 
-    if (!this.hasAccessToPatient(patient, user)) {
-      throw new ForbiddenException('Access denied to this patient');
+    if (!canView) {
+      throw new NotFoundException('Patient not found');
     }
 
-    return patient;
+    return toPatientDetail(patient);
   }
 
   async update(
     id: string,
     updatePatientDto: UpdatePatientDto,
-  ): Promise<Patient> {
+    user: AuthenticatedUser,
+  ): Promise<PatientDetailDto> {
     const patient = await this.findOne(id);
+    const canUpdate = await this.patientAccessPolicy.canUpdate(user, id);
 
-    const { firstName, lastName, dob, gender, serviceId, phoneNumber } =
-      updatePatientDto;
+    if (!canUpdate) {
+      throw new NotFoundException('Patient not found');
+    }
+
+    const { firstName, lastName, dob, gender, phoneNumber } = updatePatientDto;
 
     if (firstName !== undefined) patient.firstName = firstName;
     if (lastName !== undefined) patient.lastName = lastName;
@@ -214,81 +240,70 @@ export class PatientsService {
       patient.dob = dob ? new Date(dob) : null;
     }
 
-    if (serviceId) {
-      const service = await this.servicesService.findOne(serviceId);
-      if (service) {
-        if (!patient.services) {
-          patient.services = [];
-        }
-
-        const serviceExists = patient.services.some((s) => s.id === serviceId);
-        if (!serviceExists) {
-          patient.services.push(service);
-        }
-      }
-    }
     this.encryptPatientData(patient);
     const updatedPatient = await this.patientRepository.save(patient);
-    return this.decryptPatientData(updatedPatient);
+    return toPatientDetail(this.decryptPatientData(updatedPatient));
   }
 
   async remove(id: string, user: AuthenticatedUser): Promise<void> {
-    const patient = await this.findOneWithAccessCheck(id, user);
+    const patient = await this.findOne(id);
+    const canDelete = await this.patientAccessPolicy.canDelete(user, id);
 
-    if (
-      !user?.roles?.includes(UserRole.SUPER_ADMIN) &&
-      !user?.roles?.includes(UserRole.SERVICE_HEAD)
-    ) {
-      throw new ForbiddenException(
-        'You do not have permission to delete patients',
-      );
-    }
-
-    if (user?.roles?.includes(UserRole.SERVICE_HEAD)) {
-      const hasAccessToService = patient.services?.some(
-        (service) => service.id === user?.serviceId,
-      );
-      if (!hasAccessToService) {
-        throw new ForbiddenException(
-          'You can only delete patients from your department',
-        );
-      }
+    if (!canDelete) {
+      throw new NotFoundException('Patient not found');
     }
 
     await this.patientRepository.remove(patient);
   }
 
-  async search(searchDto: SearchPatientsDto): Promise<Patient[]> {
+  async search(searchDto: SearchPatientsDto): Promise<PatientListItemDto[]> {
     const query = this.patientRepository
       .createQueryBuilder('patient')
-      .leftJoinAndSelect('patient.services', 'services');
+      .select(['patient.id', 'patient.firstName', 'patient.lastName'])
+      .distinct(true)
+      .leftJoin('patient.services', 'services');
 
     this.applySearchFilters(query, searchDto);
 
-    const patients = await query.orderBy('patient.lastName', 'ASC').getMany();
-    return patients.map((patient) => this.decryptPatientData(patient));
+    const patients = await query
+      .orderBy('patient.lastName', 'ASC')
+      .take(MAX_PATIENT_LIST_RESULTS)
+      .getMany();
+    return patients.map(toPatientListItem);
   }
 
   async searchByService(
-    serviceId: string,
+    serviceId: string | undefined,
     searchDto: SearchPatientsDto,
-  ): Promise<Patient[]> {
+  ): Promise<PatientListItemDto[]> {
+    if (!serviceId) {
+      return [];
+    }
+
     const query = this.patientRepository
       .createQueryBuilder('patient')
-      .leftJoinAndSelect('patient.services', 'services')
+      .select(['patient.id', 'patient.firstName', 'patient.lastName'])
+      .innerJoin('patient.services', 'services')
       .where('services.id = :serviceId', { serviceId });
 
     this.applySearchFilters(query, searchDto);
 
-    const patients = await query.orderBy('patient.lastName', 'ASC').getMany();
-    return patients.map((patient) => this.decryptPatientData(patient));
+    const patients = await query
+      .orderBy('patient.lastName', 'ASC')
+      .take(MAX_PATIENT_LIST_RESULTS)
+      .getMany();
+    return patients.map(toPatientListItem);
   }
 
   async getPatientMedicalRecords(
     id: string,
     user: AuthenticatedUser,
   ): Promise<any> {
-    const patient = await this.findOneWithAccessCheck(id, user);
+    const patient = await this.findOne(id);
+
+    if (!this.hasAccessToPatient(patient, user)) {
+      throw new ForbiddenException('Access denied to this patient');
+    }
 
     return {
       patient: `${patient.firstName} ${patient.lastName}`,
@@ -300,8 +315,18 @@ export class PatientsService {
   async addServiceToPatient(
     patientId: string,
     serviceId: string,
-  ): Promise<Patient> {
+    user: AuthenticatedUser,
+  ): Promise<PatientDetailDto> {
     const patient = await this.findOne(patientId);
+    const canManage = await this.patientAccessPolicy.canManageServices(
+      user,
+      patientId,
+    );
+
+    if (!canManage) {
+      throw new NotFoundException('Patient not found');
+    }
+
     const service = await this.servicesService.findOne(serviceId);
 
     if (!patient.services) {
@@ -318,26 +343,39 @@ export class PatientsService {
 
     const saved = await this.patientRepository.save(patient);
 
-    return this.decryptPatientData(saved);
+    return toPatientDetail(this.decryptPatientData(saved));
   }
 
-  async getAllPatientsByService(serviceId: string): Promise<Patient[]> {
+  async getAllPatientsByService(
+    serviceId: string,
+  ): Promise<PatientListItemDto[]> {
     return this.findByService(serviceId);
   }
 
   async removeServiceFromPatient(
     patientId: string,
     serviceId: string,
-  ): Promise<Patient> {
+    user: AuthenticatedUser,
+  ): Promise<PatientDetailDto> {
     const patient = await this.findOne(patientId);
+    const canManage = await this.patientAccessPolicy.canManageServices(
+      user,
+      patientId,
+    );
+
+    if (!canManage) {
+      throw new NotFoundException('Patient not found');
+    }
+
     if (patient.services) {
       patient.services = patient.services.filter(
         (service) => service.id !== serviceId,
       );
-      return await this.patientRepository.save(patient);
+      const saved = await this.patientRepository.save(patient);
+      return toPatientDetail(this.decryptPatientData(saved));
     }
 
-    return patient;
+    return toPatientDetail(patient);
   }
 
   private applySearchFilters(

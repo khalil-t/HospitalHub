@@ -1,6 +1,20 @@
 import { auditService } from './auditService.js';
 
 const API_URL = import.meta.env.VITE_API_URL;
+const getAuthToken = () => localStorage.getItem('access_token');
+
+const getAuthHeaders = () => {
+  const token = getAuthToken();
+
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const readError = async (response, fallback) => {
+  const data = await response.json().catch(() => ({}));
+  const error = new Error(data.message || fallback);
+  error.status = response.status;
+  return error;
+};
 
 export const serviceApi = {
   findByCode: async (code) => {
@@ -8,6 +22,7 @@ export const serviceApi = {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
     });
 
@@ -33,6 +48,7 @@ export const serviceApi = {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
     });
 
@@ -59,6 +75,7 @@ export const patientService = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(patientData),
     });
@@ -93,19 +110,23 @@ export const patientService = {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(updateData),
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await readError(
+        response,
+        'Échec de la mise à jour du patient',
+      );
       await auditService.logAction(
         'PATIENT_UPDATED',
         'patient',
         id,
         `Failed to update patient: ${error.message}`,
       );
-      throw new Error(error.message || 'Échec de la mise à jour du patient');
+      throw error;
     }
 
     const result = await response.json();
@@ -126,7 +147,7 @@ export const patientService = {
     }
 
     const url = `${API_URL}/patients/search?${params.toString()}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: getAuthHeaders() });
     const data = await response.json();
 
     if (!response.ok) {
@@ -141,6 +162,7 @@ export const patientService = {
   getPatientsWithoutDoctorFromService: async (serviceId) => {
     const response = await fetch(
       `${API_URL}/patients/service/${serviceId}/no-doctor`,
+      { headers: getAuthHeaders() },
     );
 
     const data = await response.json();
@@ -164,17 +186,21 @@ export const patientService = {
 
     const response = await fetch(`${API_URL}/patients/${id}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
+      const error = await readError(
+        response,
+        'Échec de la suppression du patient',
+      );
       await auditService.logAction(
         'PATIENT_DELETED',
         'patient',
         id,
         `Failed to delete patient: ${error.message}`,
       );
-      throw new Error(error.message || 'Échec de la suppression du patient');
+      throw error;
     }
 
     if (patient) {
@@ -184,7 +210,7 @@ export const patientService = {
 
   getAllPatientsByService: async (serviceId) => {
     const url = `${API_URL}/patients/service/${serviceId}/all`;
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: getAuthHeaders() });
     const data = await response.json();
 
     if (!response.ok) {
@@ -206,22 +232,23 @@ export const patientService = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify({ serviceId }),
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await readError(
+        response,
+        `Échec de l'ajout du service ${serviceId} au patient ${patientId}`,
+      );
       await auditService.logAction(
         'PATIENT_UPDATED',
         'patient_service',
         patientId,
         `Failed to add service ${serviceId} to patient ${patientId}: ${error.message}`,
       );
-      throw new Error(
-        error.message ||
-          `Échec de l'ajout du service ${serviceId} au patient ${patientId}`,
-      );
+      throw error;
     }
 
     const result = await response.json();
@@ -236,21 +263,22 @@ export const patientService = {
       `${API_URL}/patients/${patientId}/services/${serviceId}`,
       {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       },
     );
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
+      const error = await readError(
+        response,
+        `Failed to remove service ${serviceId} from patient ${patientId}`,
+      );
       await auditService.logAction(
         'PATIENT_UPDATED',
         'patient_service',
         patientId,
         `Failed to remove service ${serviceId} from patient ${patientId}: ${error.message}`,
       );
-      throw new Error(
-        error.message ||
-          `Failed to remove service ${serviceId} from patient ${patientId}`,
-      );
+      throw error;
     }
 
     await auditService.logServiceAssignment(patientId, serviceId, 'Removed');
@@ -263,6 +291,7 @@ export const patientService = {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
       },
     });
 
@@ -283,16 +312,25 @@ export const patientService = {
   },
 
   getPatientById: async (id) => {
-    const response = await fetch(`${API_URL}/patients/${id}`);
-    if (response.ok) {
-      const patient = await response.json();
-      await auditService.logPatientViewed(
-        id,
-        `${patient.firstName} ${patient.lastName}`,
+    const response = await fetch(`${API_URL}/patients/${id}`, {
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      const requestError = new Error(
+        error.message || 'Failed to load patient details',
       );
-      return patient;
+      requestError.status = response.status;
+      throw requestError;
     }
-    return null;
+
+    const patient = await response.json();
+    await auditService.logPatientViewed(
+      id,
+      `${patient.firstName} ${patient.lastName}`,
+    );
+    return patient;
   },
 };
 
@@ -499,8 +537,6 @@ export const medicalRecordService = {
   },
 };
 
-const getAuthToken = () => localStorage.getItem('access_token');
-
 export const externalDoctorService = {
   async createRequest(requestData) {
     const response = await fetch(`${API_URL}/external-doctors/request`, {
@@ -634,13 +670,6 @@ const adminHeaders = () => ({
   'Content-Type': 'application/json',
   Authorization: `Bearer ${getAuthToken()}`,
 });
-
-const readError = async (response, fallback) => {
-  const data = await response.json().catch(() => ({}));
-  const error = new Error(data.message || fallback);
-  error.status = response.status;
-  return error;
-};
 
 export const roleService = {
   async getAllRoles() {

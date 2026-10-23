@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -107,7 +107,7 @@ const DoctorDashboard = () => {
   const [isLoadingRecord, setIsLoadingRecord] = useState(false);
   const [isViewOnly, setIsViewOnly] = useState(false);
 
-  const fetchPatients = async () => {
+  const fetchPatients = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await medicalRecordService.getPatientsForDoctor(user.id);
@@ -117,9 +117,9 @@ const DoctorDashboard = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
 
-  const handleSearchPatients = async () => {
+  const handleSearchPatients = useCallback(async () => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
       toast.info('Please enter a search term');
@@ -159,7 +159,7 @@ const DoctorDashboard = () => {
     } finally {
       setIsSearching(false);
     }
-  };
+  }, [searchQuery]);
 
   const handleViewMedicalRecordFromSearch = async (patient) => {
     setModalPatient(patient);
@@ -721,29 +721,6 @@ const DoctorDashboard = () => {
                                   View Only
                                 </Badge>
                               </div>
-                              <p className="text-sm text-muted-foreground">
-                                DOB: {patient.dob || 'N/A'} • Gender:{' '}
-                                {patient.gender || 'N/A'}
-                              </p>
-                              {patient.phoneNumber && (
-                                <p className="text-sm text-foreground mt-1">
-                                  Phone: {patient.phoneNumber}
-                                </p>
-                              )}
-                              {patient.services &&
-                                patient.services.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-2">
-                                    {patient.services.map((service, index) => (
-                                      <Badge
-                                        key={index}
-                                        variant="secondary"
-                                        className="text-xs"
-                                      >
-                                        {service.name || 'Service'}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                )}
                             </div>
                           </div>
                           <Button

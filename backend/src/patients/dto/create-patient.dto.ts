@@ -45,7 +45,4 @@ export class CreatePatientDto {
   @IsOptional()
   @IsUUID()
   serviceId?: string;
-
-  @IsUUID()
-  createdById: string;
 }
