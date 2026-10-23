@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -6,9 +10,14 @@ import { MedicalRecord } from './entities/medical-record.entity';
 import { Prescriptions } from './entities/prescriptions.entity';
 import { CreateMedicalRecordDto } from './dto/create-medical-record.dto';
 import { UpdateMedicalRecordDto } from './dto/update-medical-record.dto';
+import { MedicalRecordResponseDto } from './dto/medical-record-response.dto';
 import { Patient } from '../patients/entities/patient.entity';
 import { User } from '../users/entities/user.entity';
 import { EncryptionService } from '../common/encryption.service';
+import { UserRole } from '../common/enums/user-role.enum';
+import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
+import { MedicalRecordAccessPolicy } from './policy/medical-record-access.policy';
+import { toMedicalRecordResponse } from './medical-record-response.mapper';
 
 const MEDICAL_RECORD_ENCRYPTED_FIELDS = [
   'title',
@@ -41,6 +50,7 @@ export class MedicalRecordService {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly encryptionService: EncryptionService,
+    private readonly accessPolicy: MedicalRecordAccessPolicy,
   ) {}
 
   private encryptMedicalRecordData(
@@ -177,11 +187,51 @@ export class MedicalRecordService {
     decrypted.prescriptions = this.decryptPrescriptionsArray(
       record.prescriptions || [],
     );
+    decrypted.responsibleDoctors = (record.responsibleDoctors || []).map(
+      (doctor) => this.decryptUserData(doctor),
+    );
 
     return decrypted;
   }
 
-  async create(createDto: CreateMedicalRecordDto): Promise<MedicalRecord> {
+  private toResponse(record: MedicalRecord): MedicalRecordResponseDto {
+    return toMedicalRecordResponse(this.toDecryptedRecord(record));
+  }
+
+  private hasRole(user: AuthenticatedUser, role: UserRole): boolean {
+    return (user.roles ?? []).includes(role);
+  }
+
+  async createForActor(
+    dto: CreateMedicalRecordDto,
+    user: AuthenticatedUser,
+  ): Promise<MedicalRecordResponseDto> {
+    const allowed = await this.accessPolicy.canCreate(user, dto.patientId);
+
+    if (!allowed) {
+      if (
+        this.hasRole(user, UserRole.SUPER_ADMIN) ||
+        this.hasRole(user, UserRole.INTERNAL_DOCTOR)
+      ) {
+        throw new NotFoundException('Patient not found');
+      }
+      throw new ForbiddenException();
+    }
+
+    return this.create(dto, user.id);
+  }
+
+  createInitialRecord(
+    patientId: string,
+    authorId: string,
+  ): Promise<MedicalRecordResponseDto> {
+    return this.create({ patientId }, authorId);
+  }
+
+  private async create(
+    createDto: CreateMedicalRecordDto,
+    authorId: string,
+  ): Promise<MedicalRecordResponseDto> {
     const patient = await this.patientRepo.findOne({
       where: { id: createDto.patientId },
     });
@@ -210,6 +260,7 @@ export class MedicalRecordService {
     const record = this.recordRepo.create({
       ...encryptedData,
       patient,
+      authorId,
     });
     const savedRecord = await this.recordRepo.save(record);
 
@@ -249,18 +300,56 @@ export class MedicalRecordService {
       throw new Error('Failed to fetch saved medical record');
     }
 
-    return this.toDecryptedRecord(completeRecord);
+    return this.toResponse(completeRecord);
   }
 
-  async findAll(): Promise<MedicalRecord[]> {
+  async findAllForActor(
+    user: AuthenticatedUser,
+  ): Promise<MedicalRecordResponseDto[]> {
+    if (this.hasRole(user, UserRole.SUPER_ADMIN)) {
+      return this.findAll();
+    }
+    if (this.hasRole(user, UserRole.INTERNAL_DOCTOR)) {
+      return this.findForInternalDoctor(user);
+    }
+    throw new ForbiddenException();
+  }
+
+  private async findForInternalDoctor(
+    user: AuthenticatedUser,
+  ): Promise<MedicalRecordResponseDto[]> {
+    const query = this.recordRepo
+      .createQueryBuilder('record')
+      .leftJoinAndSelect('record.patient', 'patient')
+      .leftJoinAndSelect('patient.services', 'services')
+      .leftJoinAndSelect('record.responsibleDoctors', 'responsibleDoctors')
+      .leftJoinAndSelect('record.prescriptions', 'prescriptions')
+      .where('responsibleDoctors.id = :userId', { userId: user.id });
+
+    if (user.serviceId) {
+      query.orWhere('services.id = :serviceId', {
+        serviceId: user.serviceId,
+      });
+    }
+
+    const records = await query.distinct(true).getMany();
+    return records.map((record) => this.toResponse(record));
+  }
+
+  private async findAll(): Promise<MedicalRecordResponseDto[]> {
     const records = await this.recordRepo.find({
       relations: ['patient', 'responsibleDoctors', 'prescriptions'],
     });
 
-    return records.map((record) => this.toDecryptedRecord(record));
+    return records.map((record) => this.toResponse(record));
   }
 
-  async countPatientsForDoctor(doctorId: string): Promise<number> {
+  async countPatientsForDoctor(
+    doctorId: string,
+    user: AuthenticatedUser,
+  ): Promise<number> {
+    this.assertDoctorScope(user, doctorId);
+
     const result = await this.recordRepo
       .createQueryBuilder('mr')
       .innerJoin('mr.responsibleDoctors', 'doc')
@@ -272,7 +361,12 @@ export class MedicalRecordService {
     return Number(result?.count ?? 0);
   }
 
-  async getPatientsForDoctor(doctorId: string): Promise<MedicalRecord[]> {
+  async getPatientsForDoctor(
+    doctorId: string,
+    user: AuthenticatedUser,
+  ): Promise<MedicalRecordResponseDto[]> {
+    this.assertDoctorScope(user, doctorId);
+
     const records = await this.recordRepo
       .createQueryBuilder('mr')
       .innerJoin(
@@ -282,13 +376,31 @@ export class MedicalRecordService {
         { doctorId },
       )
       .innerJoinAndSelect('mr.patient', 'patient')
+      .leftJoinAndSelect('mr.responsibleDoctors', 'responsibleDoctors')
       .leftJoinAndSelect('mr.prescriptions', 'prescriptions')
       .getMany();
 
-    return records.map((record) => this.toDecryptedRecord(record));
+    return records.map((record) => this.toResponse(record));
   }
 
-  async findOne(id: string): Promise<MedicalRecord> {
+  private assertDoctorScope(user: AuthenticatedUser, doctorId: string): void {
+    if (!this.accessPolicy.canViewDoctorRecords(user, doctorId)) {
+      throw new NotFoundException('Doctor not found');
+    }
+  }
+
+  async findOneForActor(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<MedicalRecordResponseDto> {
+    if (!(await this.accessPolicy.canView(user, id))) {
+      throw new NotFoundException('Medical record not found');
+    }
+
+    return this.findOne(id);
+  }
+
+  private async findOne(id: string): Promise<MedicalRecordResponseDto> {
     const record = await this.recordRepo.findOne({
       where: { id },
       relations: ['patient', 'responsibleDoctors', 'prescriptions'],
@@ -298,33 +410,42 @@ export class MedicalRecordService {
       throw new NotFoundException('Medical record not found');
     }
 
-    return this.toDecryptedRecord(record);
+    return this.toResponse(record);
   }
 
-  async findByPatient(patientId: string): Promise<MedicalRecord | null> {
-    const record = await this.recordRepo.findOne({
+  async findByPatientForActor(
+    patientId: string,
+    user: AuthenticatedUser,
+  ): Promise<MedicalRecordResponseDto[]> {
+    if (!(await this.accessPolicy.canViewByPatient(user, patientId))) {
+      throw new NotFoundException('Patient not found');
+    }
+
+    const records = await this.recordRepo.find({
       where: { patient: { id: patientId } },
       relations: ['patient', 'responsibleDoctors', 'prescriptions'],
       order: { recordDate: 'DESC' },
     });
 
-    if (!record) return null;
-
-    const decrypted = this.toDecryptedRecord(record);
-
-    if (record.responsibleDoctors?.length) {
-      decrypted.responsibleDoctors = record.responsibleDoctors.map((doctor) =>
-        this.decryptUserData(doctor),
-      );
-    }
-
-    return decrypted;
+    return records.map((record) => this.toResponse(record));
   }
 
-  async update(
+  async updateForActor(
     id: string,
     dto: UpdateMedicalRecordDto,
-  ): Promise<MedicalRecord> {
+    user: AuthenticatedUser,
+  ): Promise<MedicalRecordResponseDto> {
+    if (!(await this.accessPolicy.canUpdate(user, id))) {
+      throw new ForbiddenException();
+    }
+
+    return this.update(id, dto);
+  }
+
+  private async update(
+    id: string,
+    dto: UpdateMedicalRecordDto,
+  ): Promise<MedicalRecordResponseDto> {
     const record = await this.recordRepo.findOne({
       where: { id },
       relations: ['prescriptions', 'responsibleDoctors', 'patient'],
@@ -398,12 +519,37 @@ export class MedicalRecordService {
     }
 
     const updatedRecord = await this.recordRepo.save(record);
+    const completeRecord = await this.recordRepo.findOne({
+      where: { id: updatedRecord.id },
+      relations: ['patient', 'responsibleDoctors', 'prescriptions'],
+    });
 
-    return this.toDecryptedRecord(updatedRecord);
+    if (!completeRecord) {
+      throw new NotFoundException('Medical record not found');
+    }
+
+    return this.toResponse(completeRecord);
   }
 
-  async remove(id: string) {
-    const record = await this.findOne(id);
-    return this.recordRepo.remove(record);
+  async removeForActor(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<{ success: boolean }> {
+    if (!this.accessPolicy.canDelete(user)) {
+      throw new ForbiddenException();
+    }
+
+    await this.remove(id);
+    return { success: true };
+  }
+
+  private async remove(id: string): Promise<void> {
+    const record = await this.recordRepo.findOne({ where: { id } });
+
+    if (!record) {
+      throw new NotFoundException('Medical record not found');
+    }
+
+    await this.recordRepo.remove(record);
   }
 }

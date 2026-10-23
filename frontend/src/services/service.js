@@ -1,7 +1,7 @@
-import { auditService } from './auditService.js';
+import { auditService } from "./auditService.js";
 
 const API_URL = import.meta.env.VITE_API_URL;
-const getAuthToken = () => localStorage.getItem('access_token');
+const getAuthToken = () => localStorage.getItem("access_token");
 
 const getAuthHeaders = () => {
   const token = getAuthToken();
@@ -19,23 +19,23 @@ const readError = async (response, fallback) => {
 export const serviceApi = {
   findByCode: async (code) => {
     const response = await fetch(`${API_URL}/services/code/${code}`, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...getAuthHeaders(),
       },
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch service by code');
+      throw new Error(error.message || "Failed to fetch service by code");
     }
 
     const result = await response.json();
 
     await auditService.logAction(
-      'VIEW',
-      'service_lookup',
+      "VIEW",
+      "service_lookup",
       null,
       `Looked up service by code: ${code}`,
     );
@@ -45,22 +45,22 @@ export const serviceApi = {
 
   getAllServices: async () => {
     const response = await fetch(`${API_URL}/services`, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...getAuthHeaders(),
       },
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch services');
+      throw new Error("Failed to fetch services");
     }
 
     const result = await response.json();
 
     await auditService.logAction(
-      'VIEW',
-      'services_list',
+      "VIEW",
+      "services_list",
       null,
       `Viewed all services - ${result.length} results`,
     );
@@ -72,9 +72,9 @@ export const serviceApi = {
 export const patientService = {
   createPatient: async (patientData) => {
     const response = await fetch(`${API_URL}/patients`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...getAuthHeaders(),
       },
       body: JSON.stringify(patientData),
@@ -83,12 +83,12 @@ export const patientService = {
     if (!response.ok) {
       const error = await response.json();
       await auditService.logAction(
-        'PATIENT_CREATED',
-        'patient',
+        "PATIENT_CREATED",
+        "patient",
         null,
         `Failed to create patient: ${patientData.firstName} ${patientData.lastName} - ${error.message}`,
       );
-      throw new Error(error.message || 'Échec de la création du patient');
+      throw new Error(error.message || "Échec de la création du patient");
     }
 
     const result = await response.json();
@@ -107,9 +107,9 @@ export const patientService = {
     const oldPatient = await this.getPatientById(id).catch(() => null);
 
     const response = await fetch(`${API_URL}/patients/${id}`, {
-      method: 'PATCH',
+      method: "PATCH",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...getAuthHeaders(),
       },
       body: JSON.stringify(updateData),
@@ -118,11 +118,11 @@ export const patientService = {
     if (!response.ok) {
       const error = await readError(
         response,
-        'Échec de la mise à jour du patient',
+        "Échec de la mise à jour du patient",
       );
       await auditService.logAction(
-        'PATIENT_UPDATED',
-        'patient',
+        "PATIENT_UPDATED",
+        "patient",
         id,
         `Failed to update patient: ${error.message}`,
       );
@@ -140,10 +140,10 @@ export const patientService = {
     const params = new URLSearchParams();
 
     if (searchCriteria.firstName) {
-      params.append('firstName', searchCriteria.firstName);
+      params.append("firstName", searchCriteria.firstName);
     }
     if (searchCriteria.lastName) {
-      params.append('lastName', searchCriteria.lastName);
+      params.append("lastName", searchCriteria.lastName);
     }
 
     const url = `${API_URL}/patients/search?${params.toString()}`;
@@ -151,7 +151,7 @@ export const patientService = {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'Échec de la recherche de patients');
+      throw new Error(data.message || "Échec de la recherche de patients");
     }
 
     await auditService.logPatientSearch(searchCriteria, data.length || 0);
@@ -168,12 +168,12 @@ export const patientService = {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to fetch patients');
+      throw new Error(data.message || "Failed to fetch patients");
     }
 
     await auditService.logAction(
-      'VIEW',
-      'patients_without_doctor',
+      "VIEW",
+      "patients_without_doctor",
       null,
       `Viewed patients without doctor for service: ${serviceId} - ${data.length} results`,
     );
@@ -185,18 +185,18 @@ export const patientService = {
     const patient = await this.getPatientById(id).catch(() => null);
 
     const response = await fetch(`${API_URL}/patients/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: getAuthHeaders(),
     });
 
     if (!response.ok) {
       const error = await readError(
         response,
-        'Échec de la suppression du patient',
+        "Échec de la suppression du patient",
       );
       await auditService.logAction(
-        'PATIENT_DELETED',
-        'patient',
+        "PATIENT_DELETED",
+        "patient",
         id,
         `Failed to delete patient: ${error.message}`,
       );
@@ -214,12 +214,12 @@ export const patientService = {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to fetch patients by service');
+      throw new Error(data.message || "Failed to fetch patients by service");
     }
 
     await auditService.logAction(
-      'VIEW',
-      'patients_by_service',
+      "VIEW",
+      "patients_by_service",
       null,
       `Viewed all patients for service: ${serviceId} - ${data.length} results`,
     );
@@ -229,9 +229,9 @@ export const patientService = {
 
   addServiceToPatient: async (patientId, serviceId) => {
     const response = await fetch(`${API_URL}/patients/${patientId}/services`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...getAuthHeaders(),
       },
       body: JSON.stringify({ serviceId }),
@@ -243,8 +243,8 @@ export const patientService = {
         `Échec de l'ajout du service ${serviceId} au patient ${patientId}`,
       );
       await auditService.logAction(
-        'PATIENT_UPDATED',
-        'patient_service',
+        "PATIENT_UPDATED",
+        "patient_service",
         patientId,
         `Failed to add service ${serviceId} to patient ${patientId}: ${error.message}`,
       );
@@ -253,7 +253,7 @@ export const patientService = {
 
     const result = await response.json();
 
-    await auditService.logServiceAssignment(patientId, serviceId, 'Added');
+    await auditService.logServiceAssignment(patientId, serviceId, "Added");
 
     return result;
   },
@@ -262,7 +262,7 @@ export const patientService = {
     const response = await fetch(
       `${API_URL}/patients/${patientId}/services/${serviceId}`,
       {
-        method: 'DELETE',
+        method: "DELETE",
         headers: getAuthHeaders(),
       },
     );
@@ -273,24 +273,24 @@ export const patientService = {
         `Failed to remove service ${serviceId} from patient ${patientId}`,
       );
       await auditService.logAction(
-        'PATIENT_UPDATED',
-        'patient_service',
+        "PATIENT_UPDATED",
+        "patient_service",
         patientId,
         `Failed to remove service ${serviceId} from patient ${patientId}: ${error.message}`,
       );
       throw error;
     }
 
-    await auditService.logServiceAssignment(patientId, serviceId, 'Removed');
+    await auditService.logServiceAssignment(patientId, serviceId, "Removed");
 
     return response.status === 204 ? null : await response.json();
   },
 
   fetchAllPatients: async () => {
     const response = await fetch(`${API_URL}/patients`, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...getAuthHeaders(),
       },
     });
@@ -298,12 +298,12 @@ export const patientService = {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to load patients');
+      throw new Error(data.message || "Failed to load patients");
     }
 
     await auditService.logAction(
-      'VIEW',
-      'all_patients',
+      "VIEW",
+      "all_patients",
       null,
       `Viewed all patients - ${data.length} results`,
     );
@@ -319,7 +319,7 @@ export const patientService = {
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       const requestError = new Error(
-        error.message || 'Failed to load patient details',
+        error.message || "Failed to load patient details",
       );
       requestError.status = response.status;
       throw requestError;
@@ -339,25 +339,26 @@ export const medicalRecordService = {
     const oldRecord = await this.getMedicalRecordById(id).catch(() => null);
 
     const dataToSend = {
-      title: recordData.title || '',
-      content: recordData.content || '',
-      diagnosis: recordData.diagnosis || '',
+      title: recordData.title || "",
+      content: recordData.content || "",
+      diagnosis: recordData.diagnosis || "",
       allergies: recordData.allergies || [],
       recordDate: recordData.recordDate,
       responsibleDoctors: recordData.responsibleDoctors || [],
       prescriptions: (recordData.prescriptions || []).map((prescription) => ({
         id: prescription.id || undefined,
-        medication: prescription.medication || prescription.name || '',
-        dose: prescription.dose || prescription.dosage || '',
-        frequency: prescription.frequency || '',
-        duration: prescription.duration || '',
+        medication: prescription.medication || prescription.name || "",
+        dose: prescription.dose || prescription.dosage || "",
+        frequency: prescription.frequency || "",
+        duration: prescription.duration || "",
       })),
     };
 
     const response = await fetch(`${API_URL}/medical-records/${id}`, {
-      method: 'PATCH',
+      method: "PATCH",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(dataToSend),
     });
@@ -365,12 +366,12 @@ export const medicalRecordService = {
     if (!response.ok) {
       const error = await response.json();
       await auditService.logAction(
-        'RECORD_UPDATED',
-        'medical_record',
+        "RECORD_UPDATED",
+        "medical_record",
         id,
         `Failed to update medical record: ${error.message}`,
       );
-      throw new Error(error.message || 'Failed to update medical record');
+      throw new Error(error.message || "Failed to update medical record");
     }
 
     const result = await response.json();
@@ -382,9 +383,10 @@ export const medicalRecordService = {
 
   async createMedicalRecord(recordData) {
     const response = await fetch(`${API_URL}/medical-records`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(recordData),
     });
@@ -393,12 +395,12 @@ export const medicalRecordService = {
 
     if (!response.ok) {
       await auditService.logAction(
-        'RECORD_CREATED',
-        'medical_record',
+        "RECORD_CREATED",
+        "medical_record",
         null,
         `Failed to create medical record: ${recordData.title} - ${data.message}`,
       );
-      throw new Error(data.message || 'Failed to create medical record');
+      throw new Error(data.message || "Failed to create medical record");
     }
 
     await auditService.logMedicalRecordCreated({
@@ -411,16 +413,18 @@ export const medicalRecordService = {
   },
 
   async getAllMedicalRecords() {
-    const response = await fetch(`${API_URL}/medical-records`);
+    const response = await fetch(`${API_URL}/medical-records`, {
+      headers: getAuthHeaders(),
+    });
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to load medical records');
+      throw new Error(data.message || "Failed to load medical records");
     }
 
     await auditService.logAction(
-      'VIEW',
-      'medical_records_list',
+      "VIEW",
+      "medical_records_list",
       null,
       `Viewed all medical records - ${data.length} results`,
     );
@@ -431,24 +435,25 @@ export const medicalRecordService = {
   async getMedicalRecordByPatient(patientId) {
     const response = await fetch(
       `${API_URL}/medical-records/patient/${patientId}`,
+      { headers: getAuthHeaders() },
     );
     const text = await response.text();
 
     if (!text) {
-      throw new Error('Empty response from server');
+      throw new Error("Empty response from server");
     }
 
     const data = JSON.parse(text);
 
     if (!response.ok) {
-      const error = new Error(data.message || 'Failed to load medical record');
+      const error = new Error(data.message || "Failed to load medical record");
       error.status = response.status;
       throw error;
     }
 
     await auditService.logAction(
-      'RECORD_VIEWED',
-      'medical_record',
+      "RECORD_VIEWED",
+      "medical_record",
       null,
       `Viewed medical records for patient: ${patientId}`,
     );
@@ -459,17 +464,20 @@ export const medicalRecordService = {
   async getPatientsForDoctor(doctorId) {
     const response = await fetch(
       `${API_URL}/medical-records/doctor/${doctorId}/patients`,
+      { headers: getAuthHeaders() },
     );
 
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to load patients assigned to doctor');
+      throw new Error(
+        data.message || "Failed to load patients assigned to doctor",
+      );
     }
 
     await auditService.logAction(
-      'VIEW',
-      'doctor_patients',
+      "VIEW",
+      "doctor_patients",
       doctorId,
       `Viewed patients assigned to doctor: ${doctorId} - ${data.length} results`,
     );
@@ -480,17 +488,18 @@ export const medicalRecordService = {
   async getPatientsCountByDoctor(doctorId) {
     const response = await fetch(
       `${API_URL}/medical-records/doctor/${doctorId}/patients-count`,
+      { headers: getAuthHeaders() },
     );
 
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to get patients count');
+      throw new Error(data.message || "Failed to get patients count");
     }
 
     await auditService.logAction(
-      'VIEW',
-      'doctor_patients_count',
+      "VIEW",
+      "doctor_patients_count",
       doctorId,
       `Viewed patient count for doctor: ${doctorId} - ${data} patients`,
     );
@@ -499,11 +508,13 @@ export const medicalRecordService = {
   },
 
   async getMedicalRecordById(id) {
-    const response = await fetch(`${API_URL}/medical-records/${id}`);
+    const response = await fetch(`${API_URL}/medical-records/${id}`, {
+      headers: getAuthHeaders(),
+    });
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'Medical record not found');
+      throw new Error(data.message || "Medical record not found");
     }
 
     await auditService.logMedicalRecordViewed(id, data.title);
@@ -515,18 +526,19 @@ export const medicalRecordService = {
     const record = await this.getMedicalRecordById(id).catch(() => null);
 
     const response = await fetch(`${API_URL}/medical-records/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
+      headers: getAuthHeaders(),
     });
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       await auditService.logAction(
-        'RECORD_DELETED',
-        'medical_record',
+        "RECORD_DELETED",
+        "medical_record",
         id,
         `Failed to delete medical record: ${err.message}`,
       );
-      throw new Error(err.message || 'Failed to delete medical record');
+      throw new Error(err.message || "Failed to delete medical record");
     }
 
     if (record) {
@@ -540,9 +552,9 @@ export const medicalRecordService = {
 export const externalDoctorService = {
   async createRequest(requestData) {
     const response = await fetch(`${API_URL}/external-doctors/request`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(requestData),
     });
@@ -550,24 +562,31 @@ export const externalDoctorService = {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to submit external doctor request');
+      throw new Error(
+        data.message || "Failed to submit external doctor request",
+      );
     }
 
     return data;
   },
 
   async getRequests(status) {
-    const query = status ? `?status=${encodeURIComponent(status)}` : '';
-    const response = await fetch(`${API_URL}/external-doctors/requests${query}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${getAuthToken()}`,
-        'Content-Type': 'application/json',
+    const query = status ? `?status=${encodeURIComponent(status)}` : "";
+    const response = await fetch(
+      `${API_URL}/external-doctors/requests${query}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${getAuthToken()}`,
+          "Content-Type": "application/json",
+        },
       },
-    });
+    );
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch external doctor requests: ${response.status}`);
+      throw new Error(
+        `Failed to fetch external doctor requests: ${response.status}`,
+      );
     }
 
     return response.json();
@@ -575,15 +594,17 @@ export const externalDoctorService = {
 
   async getRequest(id) {
     const response = await fetch(`${API_URL}/external-doctors/requests/${id}`, {
-      method: 'GET',
+      method: "GET",
       headers: {
         Authorization: `Bearer ${getAuthToken()}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch external doctor request: ${response.status}`);
+      throw new Error(
+        `Failed to fetch external doctor request: ${response.status}`,
+      );
     }
 
     return response.json();
@@ -593,10 +614,10 @@ export const externalDoctorService = {
     const response = await fetch(
       `${API_URL}/external-doctors/requests/${id}/review`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
           Authorization: `Bearer ${getAuthToken()}`,
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ approved, rejectionReason }),
       },
@@ -617,31 +638,34 @@ export const externalDoctorService = {
 
   async checkExpiredAccounts() {
     const response = await fetch(`${API_URL}/external-doctors/check-expired`, {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${getAuthToken()}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
 
     if (!response.ok) {
-      throw new Error('Failed to check expired external doctor accounts');
+      throw new Error("Failed to check expired external doctor accounts");
     }
 
     return response.json();
   },
 
   async deactivateExpiredAccounts() {
-    const response = await fetch(`${API_URL}/external-doctors/deactivate-expired`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${getAuthToken()}`,
-        'Content-Type': 'application/json',
+    const response = await fetch(
+      `${API_URL}/external-doctors/deactivate-expired`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${getAuthToken()}`,
+          "Content-Type": "application/json",
+        },
       },
-    });
+    );
 
     if (!response.ok) {
-      throw new Error('Failed to deactivate expired external doctor accounts');
+      throw new Error("Failed to deactivate expired external doctor accounts");
     }
 
     return response.json();
@@ -651,9 +675,9 @@ export const externalDoctorService = {
     const response = await fetch(
       `${API_URL}/external-doctors/patients/${encodeURIComponent(email)}`,
       {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       },
     );
@@ -667,7 +691,7 @@ export const externalDoctorService = {
 };
 
 const adminHeaders = () => ({
-  'Content-Type': 'application/json',
+  "Content-Type": "application/json",
   Authorization: `Bearer ${getAuthToken()}`,
 });
 
@@ -678,7 +702,7 @@ export const roleService = {
     });
 
     if (!response.ok) {
-      throw await readError(response, 'Failed to fetch roles');
+      throw await readError(response, "Failed to fetch roles");
     }
 
     return response.json();
@@ -686,7 +710,7 @@ export const roleService = {
 
   async createRole(roleData) {
     const response = await fetch(`${API_URL}/roles`, {
-      method: 'POST',
+      method: "POST",
       headers: adminHeaders(),
       body: JSON.stringify(roleData),
     });
@@ -700,12 +724,15 @@ export const roleService = {
 
   async deleteRole(roleId) {
     const response = await fetch(`${API_URL}/roles/${roleId}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: adminHeaders(),
     });
 
     if (!response.ok) {
-      throw await readError(response, `Failed to delete role (${response.status})`);
+      throw await readError(
+        response,
+        `Failed to delete role (${response.status})`,
+      );
     }
 
     return true;
@@ -715,13 +742,13 @@ export const roleService = {
     const response = await fetch(
       `${API_URL}/roles/${userId}/assign/${roleId}`,
       {
-        method: 'POST',
+        method: "POST",
         headers: adminHeaders(),
       },
     );
 
     if (!response.ok) {
-      throw await readError(response, 'Failed to assign role');
+      throw await readError(response, "Failed to assign role");
     }
 
     return response.json();
@@ -731,13 +758,13 @@ export const roleService = {
     const response = await fetch(
       `${API_URL}/roles/${userId}/remove/${roleId}`,
       {
-        method: 'DELETE',
+        method: "DELETE",
         headers: adminHeaders(),
       },
     );
 
     if (!response.ok) {
-      throw await readError(response, 'Failed to remove role');
+      throw await readError(response, "Failed to remove role");
     }
 
     return response.json();
@@ -751,7 +778,7 @@ export const userService = {
     });
 
     if (!response.ok) {
-      throw await readError(response, 'Failed to fetch users');
+      throw await readError(response, "Failed to fetch users");
     }
 
     return response.json();
@@ -763,7 +790,7 @@ export const userService = {
     });
 
     if (!response.ok) {
-      throw await readError(response, 'Failed to fetch user');
+      throw await readError(response, "Failed to fetch user");
     }
 
     return response.json();
@@ -771,13 +798,13 @@ export const userService = {
 
   async createUser(userData) {
     const response = await fetch(`${API_URL}/users`, {
-      method: 'POST',
+      method: "POST",
       headers: adminHeaders(),
       body: JSON.stringify(userData),
     });
 
     if (!response.ok) {
-      throw await readError(response, 'Failed to create user');
+      throw await readError(response, "Failed to create user");
     }
 
     return response.json();
@@ -785,13 +812,13 @@ export const userService = {
 
   async updateUser(id, userData) {
     const response = await fetch(`${API_URL}/users/${id}`, {
-      method: 'PATCH',
+      method: "PATCH",
       headers: adminHeaders(),
       body: JSON.stringify(userData),
     });
 
     if (!response.ok) {
-      throw await readError(response, 'Failed to update user');
+      throw await readError(response, "Failed to update user");
     }
 
     return response.json();
@@ -799,12 +826,12 @@ export const userService = {
 
   async deleteUser(id) {
     const response = await fetch(`${API_URL}/users/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: adminHeaders(),
     });
 
     if (!response.ok) {
-      throw await readError(response, 'Failed to delete user');
+      throw await readError(response, "Failed to delete user");
     }
 
     return true;
@@ -816,7 +843,7 @@ export const userService = {
     });
 
     if (!response.ok) {
-      throw await readError(response, 'Failed to fetch assignable roles');
+      throw await readError(response, "Failed to fetch assignable roles");
     }
 
     return response.json();
@@ -830,7 +857,7 @@ export const adminService = {
     });
 
     if (!response.ok) {
-      throw await readError(response, 'Failed to fetch users');
+      throw await readError(response, "Failed to fetch users");
     }
 
     return response.json();
@@ -838,7 +865,7 @@ export const adminService = {
 
   async createUser(userData) {
     const response = await fetch(`${API_URL}/admin/new_med`, {
-      method: 'POST',
+      method: "POST",
       headers: adminHeaders(),
       body: JSON.stringify(userData),
     });
@@ -852,13 +879,16 @@ export const adminService = {
 
   async updateUser(id, userData) {
     const response = await fetch(`${API_URL}/admin/users/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       headers: adminHeaders(),
       body: JSON.stringify(userData),
     });
 
     if (!response.ok) {
-      throw await readError(response, `Failed to update user (${response.status})`);
+      throw await readError(
+        response,
+        `Failed to update user (${response.status})`,
+      );
     }
 
     return response.json();
@@ -866,12 +896,12 @@ export const adminService = {
 
   async deleteUser(id) {
     const response = await fetch(`${API_URL}/admin/users/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: adminHeaders(),
     });
 
     if (!response.ok) {
-      throw await readError(response, 'Failed to delete user');
+      throw await readError(response, "Failed to delete user");
     }
 
     return true;
@@ -883,7 +913,7 @@ export const adminService = {
     });
 
     if (!response.ok) {
-      throw await readError(response, 'Failed to fetch services');
+      throw await readError(response, "Failed to fetch services");
     }
 
     return response.json();

@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { Patient } from './entities/patient.entity';
@@ -12,7 +8,6 @@ import { SearchPatientsDto } from './dto/search-patients.dto';
 import { ServicesService } from '../services/services.service';
 import { UsersService } from '../users/users.service';
 import { MedicalRecordService } from '../medical-records/medical-record.service';
-import { UserRole } from '../common/enums/user-role.enum';
 import { EncryptionService } from '../common/encryption.service';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import { PatientListItemDto } from './dto/patient-list-item.dto';
@@ -109,9 +104,10 @@ export class PatientsService {
 
     const savedPatient = await this.patientRepository.save(patient);
 
-    await this.medicalRecordService.create({
-      patientId: savedPatient.id,
-    });
+    await this.medicalRecordService.createInitialRecord(
+      savedPatient.id,
+      actor.id,
+    );
 
     return toPatientListItem(savedPatient);
   }
@@ -298,16 +294,20 @@ export class PatientsService {
   async getPatientMedicalRecords(
     id: string,
     user: AuthenticatedUser,
-  ): Promise<any> {
+  ): Promise<{
+    patient: string;
+    medicalRecords: unknown[];
+    accessGranted: boolean;
+  }> {
+    const records = await this.medicalRecordService.findByPatientForActor(
+      id,
+      user,
+    );
     const patient = await this.findOne(id);
-
-    if (!this.hasAccessToPatient(patient, user)) {
-      throw new ForbiddenException('Access denied to this patient');
-    }
 
     return {
       patient: `${patient.firstName} ${patient.lastName}`,
-      medicalRecords: patient.medicalRecords || [],
+      medicalRecords: records,
       accessGranted: true,
     };
   }
@@ -411,24 +411,5 @@ export class PatientsService {
         serviceId: searchDto.serviceId,
       });
     }
-  }
-
-  private hasAccessToPatient(
-    patient: Patient,
-    user: AuthenticatedUser,
-  ): boolean {
-    if (user?.roles?.includes(UserRole.SUPER_ADMIN)) return true;
-
-    if (
-      user?.roles?.includes(UserRole.SERVICE_HEAD) &&
-      (!patient.services || patient.services.length === 0)
-    ) {
-      return true;
-    }
-
-    const hasAccessToService = patient.services?.some(
-      (service) => service.id === user?.serviceId,
-    );
-    return hasAccessToService ?? false;
   }
 }

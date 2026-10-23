@@ -26,6 +26,11 @@ import { PatientAccessPolicy } from './policy/patient-access.policy';
     PatientsRepository,
     PatientAccessPolicy,
   ],
-  exports: [PatientsRepository, PatientsService, TypeOrmModule],
+  exports: [
+    PatientsRepository,
+    PatientsService,
+    PatientAccessPolicy,
+    TypeOrmModule,
+  ],
 })
 export class PatientsModule {}

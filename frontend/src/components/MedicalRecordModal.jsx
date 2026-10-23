@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Plus,
   X,
@@ -19,21 +19,21 @@ import {
   User,
   Calendar,
   Stethoscope,
-} from 'lucide-react';
+} from "lucide-react";
 
 const EMPTY_FORM = {
-  title: '',
-  content: '',
-  diagnosis: '',
+  title: "",
+  content: "",
+  diagnosis: "",
   allergies: [],
   prescriptions: [],
 };
 
 const EMPTY_PRESCRIPTION = {
-  name: '',
-  dosage: '',
-  frequency: '',
-  duration: '',
+  name: "",
+  dosage: "",
+  frequency: "",
+  duration: "",
 };
 
 export default function MedicalRecordModal({
@@ -42,6 +42,7 @@ export default function MedicalRecordModal({
   patient,
   medicalRecord,
   onSave,
+  readOnly = false,
 }) {
   const [form, setForm] = useState(() => {
     if (!medicalRecord) return EMPTY_FORM;
@@ -56,7 +57,7 @@ export default function MedicalRecordModal({
         : [],
     };
   });
-  const [newAllergy, setNewAllergy] = useState('');
+  const [newAllergy, setNewAllergy] = useState("");
   const [newPrescription, setNewPrescription] = useState(EMPTY_PRESCRIPTION);
 
   useEffect(() => {
@@ -87,7 +88,7 @@ export default function MedicalRecordModal({
         ...prev,
         allergies: [...prev.allergies, newAllergy.trim()],
       }));
-      setNewAllergy('');
+      setNewAllergy("");
     }
   };
 
@@ -141,7 +142,7 @@ export default function MedicalRecordModal({
             </div>
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
-              <span>DOB: {patient?.dob || 'N/A'}</span>
+              <span>DOB: {patient?.dob || "N/A"}</span>
             </div>
           </div>
         </DialogHeader>
@@ -155,10 +156,11 @@ export default function MedicalRecordModal({
                     Title
                   </Label>
                   <Input
-                    value={form.title ?? ''}
-                    onChange={(e) => update('title', e.target.value)}
+                    value={form.title ?? ""}
+                    onChange={(e) => update("title", e.target.value)}
                     placeholder="Record title"
                     className="mt-1"
+                    disabled={readOnly}
                   />
                 </div>
                 <div>
@@ -167,9 +169,10 @@ export default function MedicalRecordModal({
                   </Label>
                   <Input
                     type="date"
-                    value={form.date || new Date().toISOString().split('T')[0]}
-                    onChange={(e) => update('date', e.target.value)}
+                    value={form.date || new Date().toISOString().split("T")[0]}
+                    onChange={(e) => update("date", e.target.value)}
                     className="mt-1"
+                    disabled={readOnly}
                   />
                 </div>
               </div>
@@ -183,10 +186,11 @@ export default function MedicalRecordModal({
                 <Label className="text-lg font-semibold">Diagnosis</Label>
               </div>
               <Input
-                value={form.diagnosis ?? ''}
-                onChange={(e) => update('diagnosis', e.target.value)}
+                value={form.diagnosis ?? ""}
+                onChange={(e) => update("diagnosis", e.target.value)}
                 placeholder="Enter diagnosis"
                 className="w-full"
+                disabled={readOnly}
               />
             </CardContent>
           </Card>
@@ -197,8 +201,9 @@ export default function MedicalRecordModal({
                 Clinical Notes
               </Label>
               <Textarea
-                value={form.content ?? ''}
-                onChange={(e) => update('content', e.target.value)}
+                value={form.content ?? ""}
+                onChange={(e) => update("content", e.target.value)}
+                disabled={readOnly}
                 placeholder="Enter clinical notes, observations, and treatment details..."
                 className="min-h-[120px]"
               />
@@ -218,9 +223,14 @@ export default function MedicalRecordModal({
                     value={newAllergy}
                     onChange={(e) => setNewAllergy(e.target.value)}
                     placeholder="Enter allergy (e.g., Penicillin, Peanuts)"
-                    onKeyPress={(e) => e.key === 'Enter' && addAllergy()}
+                    onKeyPress={(e) => e.key === "Enter" && addAllergy()}
+                    disabled={readOnly}
                   />
-                  <Button onClick={addAllergy} className="gap-2">
+                  <Button
+                    onClick={addAllergy}
+                    className="gap-2"
+                    disabled={readOnly}
+                  >
                     <Plus className="h-4 w-4" />
                     Add
                   </Button>
@@ -242,6 +252,7 @@ export default function MedicalRecordModal({
                           size="sm"
                           onClick={() => removeAllergy(index)}
                           className="h-8 w-8 p-0"
+                          disabled={readOnly}
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -273,10 +284,11 @@ export default function MedicalRecordModal({
                     <Input
                       value={newPrescription.name}
                       onChange={(e) =>
-                        updatePrescriptionField('name', e.target.value)
+                        updatePrescriptionField("name", e.target.value)
                       }
                       placeholder="e.g., Amoxicillin"
                       className="mt-1"
+                      disabled={readOnly}
                     />
                   </div>
                   <div>
@@ -284,10 +296,11 @@ export default function MedicalRecordModal({
                     <Input
                       value={newPrescription.dosage}
                       onChange={(e) =>
-                        updatePrescriptionField('dosage', e.target.value)
+                        updatePrescriptionField("dosage", e.target.value)
                       }
                       placeholder="e.g., 500mg"
                       className="mt-1"
+                      disabled={readOnly}
                     />
                   </div>
                   <div>
@@ -295,10 +308,11 @@ export default function MedicalRecordModal({
                     <Input
                       value={newPrescription.frequency}
                       onChange={(e) =>
-                        updatePrescriptionField('frequency', e.target.value)
+                        updatePrescriptionField("frequency", e.target.value)
                       }
                       placeholder="e.g., Twice daily"
                       className="mt-1"
+                      disabled={readOnly}
                     />
                   </div>
                   <div>
@@ -306,14 +320,19 @@ export default function MedicalRecordModal({
                     <Input
                       value={newPrescription.duration}
                       onChange={(e) =>
-                        updatePrescriptionField('duration', e.target.value)
+                        updatePrescriptionField("duration", e.target.value)
                       }
                       placeholder="e.g., 7 days"
                       className="mt-1"
+                      disabled={readOnly}
                     />
                   </div>
                   <div className="col-span-2">
-                    <Button onClick={addPrescription} className="w-full gap-2">
+                    <Button
+                      onClick={addPrescription}
+                      className="w-full gap-2"
+                      disabled={readOnly}
+                    >
                       <Plus className="h-4 w-4" />
                       Add Prescription
                     </Button>
@@ -339,21 +358,22 @@ export default function MedicalRecordModal({
                             size="sm"
                             onClick={() => removePrescription(index)}
                             className="h-8 w-8 p-0"
+                            disabled={readOnly}
                           >
                             <X className="h-4 w-4" />
                           </Button>
                         </div>
                         <div className="grid grid-cols-3 gap-4 text-sm">
                           <div>
-                            <span className="font-medium">Dosage:</span>{' '}
+                            <span className="font-medium">Dosage:</span>{" "}
                             {prescription.dosage}
                           </div>
                           <div>
-                            <span className="font-medium">Frequency:</span>{' '}
+                            <span className="font-medium">Frequency:</span>{" "}
                             {prescription.frequency}
                           </div>
                           <div>
-                            <span className="font-medium">Duration:</span>{' '}
+                            <span className="font-medium">Duration:</span>{" "}
                             {prescription.duration}
                           </div>
                         </div>
@@ -374,13 +394,15 @@ export default function MedicalRecordModal({
               <X className="h-4 w-4" />
               Cancel
             </Button>
-            <Button
-              onClick={() => onSave(form)}
-              className="gap-2 bg-blue-600 hover:bg-blue-700"
-            >
-              <FileText className="h-4 w-4" />
-              Save Medical Record
-            </Button>
+            {!readOnly && (
+              <Button
+                onClick={() => onSave(form)}
+                className="gap-2 bg-blue-600 hover:bg-blue-700"
+              >
+                <FileText className="h-4 w-4" />
+                Save Medical Record
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>

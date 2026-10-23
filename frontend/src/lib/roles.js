@@ -1,12 +1,12 @@
 export const USER_ROLE = Object.freeze({
-  SUPER_ADMIN: 'super_admin',
-  SERVICE_HEAD: 'service_head',
-  INTERNAL_DOCTOR: 'internal_doctor',
-  EXTERNAL_DOCTOR: 'external_doctor',
-  ADMISSION_AGENT: 'admission_agent',
-  VERIFICATION_CLERK: 'verification_clerk',
-  RADIOLOGIST: 'radiologist',
-  LABORATORY_TECHNICIAN: 'laboratory_technician',
+  SUPER_ADMIN: "super_admin",
+  SERVICE_HEAD: "service_head",
+  INTERNAL_DOCTOR: "internal_doctor",
+  EXTERNAL_DOCTOR: "external_doctor",
+  ADMISSION_AGENT: "admission_agent",
+  VERIFICATION_CLERK: "verification_clerk",
+  RADIOLOGIST: "radiologist",
+  LABORATORY_TECHNICIAN: "laboratory_technician",
 });
 
 export const ROLE_ASSIGNMENT_RULES = Object.freeze({
@@ -67,3 +67,15 @@ export const getPatientActionPermissions = (roles = []) => ({
   canManageServices:
     isSuperAdmin(roles) || hasRole(roles, USER_ROLE.ADMISSION_AGENT),
 });
+
+export const getMedicalRecordActionPermissions = (roles = []) => ({
+  canCreate: isSuperAdmin(roles) || hasRole(roles, USER_ROLE.INTERNAL_DOCTOR),
+  canDelete: isSuperAdmin(roles),
+});
+
+export const canEditMedicalRecord = (roles = [], record, userId) => {
+  if (isSuperAdmin(roles)) return true;
+  if (!hasRole(roles, USER_ROLE.INTERNAL_DOCTOR)) return false;
+  if (!record || !record.id) return true;
+  return Boolean(userId) && record.authorId === userId;
+};

@@ -8,7 +8,7 @@ import {
   CreateDateColumn,
   Index,
   JoinColumn,
-  OneToOne,
+  OneToMany,
 } from 'typeorm';
 import { Service } from '../../services/entities/department.entity';
 import { User } from '../../users/entities/user.entity';
@@ -54,9 +54,9 @@ export class Patient {
   @JoinColumn({ name: 'created_by' })
   createdBy?: User;
 
-  @OneToOne(() => MedicalRecord, (medicalRecord) => medicalRecord.patient)
+  @OneToMany(() => MedicalRecord, (medicalRecord) => medicalRecord.patient)
   @Exclude()
-  medicalRecords: MedicalRecord;
+  medicalRecords?: MedicalRecord[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

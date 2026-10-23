@@ -7,8 +7,8 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   JoinColumn,
-  OneToOne,
   JoinTable,
+  ManyToOne,
 } from 'typeorm';
 import { Patient } from '../../patients/entities/patient.entity';
 import { User } from '../../users/entities/user.entity';
@@ -19,7 +19,7 @@ export class MedicalRecord {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @OneToOne(() => Patient, (patient) => patient.medicalRecords, {
+  @ManyToOne(() => Patient, (patient) => patient.medicalRecords, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'patient_id' })
@@ -32,6 +32,13 @@ export class MedicalRecord {
     inverseJoinColumn: { name: 'doctor_id', referencedColumnName: 'id' },
   })
   responsibleDoctors?: User[];
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'author_id' })
+  author?: User;
+
+  @Column({ name: 'author_id', type: 'uuid', nullable: true })
+  authorId?: string;
 
   @Column({ nullable: true })
   title?: string;

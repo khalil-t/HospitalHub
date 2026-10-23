@@ -106,8 +106,10 @@ export class PatientAccessPolicy {
 
   private isAssignedDoctor(patient: Patient, user: AuthenticatedUser): boolean {
     return (
-      patient.medicalRecords?.responsibleDoctors?.some(
-        (doctor) => doctor.id === user.id,
+      patient.medicalRecords?.some(
+        (record) =>
+          record.responsibleDoctors?.some((doctor) => doctor.id === user.id) ??
+          false,
       ) ?? false
     );
   }

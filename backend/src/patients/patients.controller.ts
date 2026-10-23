@@ -92,12 +92,22 @@ export class PatientsController {
     return this.patientsService.findOneForActor(id, user);
   }
 
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.SERVICE_HEAD,
+    UserRole.INTERNAL_DOCTOR,
+    UserRole.EXTERNAL_DOCTOR,
+    UserRole.ADMISSION_AGENT,
+    UserRole.VERIFICATION_CLERK,
+    UserRole.RADIOLOGIST,
+    UserRole.LABORATORY_TECHNICIAN,
+  )
   @Get(':id/medical-records')
   getMedicalRecords(
     @Param('id') id: string,
-    @Request() req: { user: AuthenticatedUser },
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.patientsService.getPatientMedicalRecords(id, req.user);
+    return this.patientsService.getPatientMedicalRecords(id, user);
   }
 
   @Roles(
