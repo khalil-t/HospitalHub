@@ -248,8 +248,12 @@ export class UsersService {
       createUserDto.roleIds ?? [],
     );
     const savedUser = await this.persistUser(createUserDto, service, roles);
+    const decryptedUser = this.decryptUserData(savedUser);
 
-    return toUserResponse(this.decryptUserData(savedUser));
+    if (this.isSuperAdmin(actor)) {
+      return toUserResponse(decryptedUser);
+    }
+    return toUserSummary(decryptedUser) as UserResponseDto;
   }
 
   async createExternalDoctorUser(createUserDto: CreateUserDto): Promise<User> {

@@ -60,6 +60,8 @@ export enum LogAction {
   EXTERNAL_REQUEST_APPROVED = 'EXTERNAL_REQUEST_APPROVED',
   EXTERNAL_REQUEST_REJECTED = 'EXTERNAL_REQUEST_REJECTED',
   EXTERNAL_DOCTOR_REQUEST = 'EXTERNAL_DOCTOR_REQUEST',
+
+  EMAIL_SENT = 'EMAIL_SENT',
 }
 
 @Entity('audit_logs')
@@ -94,7 +96,7 @@ export class AuditLog {
   @Column({ nullable: true, type: 'jsonb' })
   newValues?: any;
 
-  @ManyToOne(() => User, { nullable: true, eager: true })
+  @ManyToOne(() => User, { nullable: true, eager: true, onDelete: 'SET NULL' })
   user?: User | null;
 
   @CreateDateColumn()

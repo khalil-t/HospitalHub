@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditLog, LogAction } from './entities/audit-log.entity';
 import { User } from '../users/entities/user.entity';
+import { EncryptionService } from '../common/encryption.service';
 
 interface AuditLogFilters {
   action?: string;
@@ -12,6 +13,10 @@ interface AuditLogFilters {
   endDate?: Date;
 }
 
+const REDACTED = '[REDACTED]';
+
+type AuditActor = Pick<User, 'id'>;
+
 @Injectable()
 export class AuditService {
   constructor(
@@ -19,19 +24,21 @@ export class AuditService {
     private auditLogRepository: Repository<AuditLog>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private encryptionService: EncryptionService,
   ) {}
 
   async createLog(
     action: LogAction,
     resource: string,
     resourceId: string | undefined,
-    user: User | undefined | null,
+    user: AuditActor | undefined | null,
     ipAddress: string,
     userAgent: string,
     details: string,
     oldValues?: any,
     newValues?: any,
     status: string = 'SUCCESS',
+    encryptValues = false,
   ): Promise<AuditLog> {
     let validUser: User | undefined = undefined;
     if (user && user.id) {
@@ -51,8 +58,16 @@ export class AuditService {
       ipAddress,
       userAgent,
       details,
-      oldValues: oldValues ? JSON.stringify(oldValues) : undefined,
-      newValues: newValues ? JSON.stringify(newValues) : undefined,
+      oldValues: encryptValues
+        ? this.encryptAuditValues(oldValues)
+        : oldValues
+          ? JSON.stringify(oldValues)
+          : undefined,
+      newValues: encryptValues
+        ? this.encryptAuditValues(newValues)
+        : newValues
+          ? JSON.stringify(newValues)
+          : undefined,
       status,
     };
 
@@ -60,9 +75,55 @@ export class AuditService {
     return await this.auditLogRepository.save(log);
   }
 
+  private encryptAuditValues(value: unknown): string | undefined {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    return this.encryptionService.encrypt(JSON.stringify(value));
+  }
+
+  private decryptAuditValues(value: unknown): unknown {
+    if (typeof value !== 'string') {
+      return value;
+    }
+    try {
+      const decrypted = this.encryptionService.decrypt(value);
+      try {
+        return JSON.parse(decrypted);
+      } catch {
+        return decrypted;
+      }
+    } catch {
+      return value;
+    }
+  }
+
+  private redactPhiForVC(log: any): any {
+    return {
+      ...log,
+      details: log.details ? REDACTED : undefined,
+      oldValues: log.oldValues ? REDACTED : undefined,
+      newValues: log.newValues ? REDACTED : undefined,
+    };
+  }
+
+  private applyRoleFilter(log: any, actorRole?: string): any {
+    if (actorRole === 'verification_clerk') {
+      return this.redactPhiForVC(log);
+    }
+    if (actorRole === 'super_admin') {
+      return {
+        ...log,
+        oldValues: this.decryptAuditValues(log.oldValues),
+        newValues: this.decryptAuditValues(log.newValues),
+      };
+    }
+    return log;
+  }
+
   async logAuthentication(
     action: LogAction.LOGIN | LogAction.LOGOUT | LogAction.FAILED_LOGIN,
-    user: User | null,
+    user: AuditActor | null,
     ipAddress: string,
     userAgent: string,
     details: string,
@@ -81,7 +142,7 @@ export class AuditService {
   async logPatientAction(
     action: LogAction,
     patientId: string,
-    user: User,
+    user: AuditActor,
     ipAddress: string,
     userAgent: string,
     details: string,
@@ -104,7 +165,7 @@ export class AuditService {
   async logMedicalRecordAction(
     action: LogAction,
     recordId: string,
-    user: User,
+    user: AuditActor,
     ipAddress: string,
     userAgent: string,
     details: string,
@@ -121,13 +182,15 @@ export class AuditService {
       details,
       oldValues,
       newValues,
+      'SUCCESS',
+      true,
     );
   }
 
   async logUserAction(
     action: LogAction,
     targetUserId: string,
-    user: User,
+    user: AuditActor,
     ipAddress: string,
     userAgent: string,
     details: string,
@@ -149,7 +212,7 @@ export class AuditService {
 
   async logDashboardAccess(
     dashboardType: string,
-    user: User,
+    user: AuditActor,
     ipAddress: string,
     userAgent: string,
   ) {
@@ -166,7 +229,7 @@ export class AuditService {
 
   async logPageVisit(
     pageName: string,
-    user: User,
+    user: AuditActor,
     ipAddress: string,
     userAgent: string,
   ) {
@@ -184,7 +247,7 @@ export class AuditService {
   async logSearch(
     searchTerm: string,
     resultsCount: number,
-    user: User,
+    user: AuditActor,
     ipAddress: string,
     userAgent: string,
   ) {
@@ -202,7 +265,7 @@ export class AuditService {
   async logDataExport(
     dataType: string,
     format: string,
-    user: User,
+    user: AuditActor,
     ipAddress: string,
     userAgent: string,
   ) {
@@ -214,6 +277,23 @@ export class AuditService {
       ipAddress,
       userAgent,
       `Exported ${dataType} data as ${format}`,
+    );
+  }
+
+  async logEmailSend(
+    user: AuditActor,
+    ipAddress: string,
+    userAgent: string,
+    details: string,
+  ) {
+    return this.createLog(
+      LogAction.EMAIL_SENT,
+      'email',
+      undefined,
+      user,
+      ipAddress,
+      userAgent,
+      details,
     );
   }
 
@@ -234,6 +314,7 @@ export class AuditService {
     page: number = 1,
     limit: number = 50,
     filters: AuditLogFilters = {},
+    actorRole?: string,
   ): Promise<{ data: any[]; total: number }> {
     const query = this.auditLogRepository
       .createQueryBuilder('log')
@@ -275,33 +356,36 @@ export class AuditService {
       .take(limit)
       .getMany();
 
-    const enrichedLogs = logs.map((log) => ({
-      id: log.id,
-      action: log.action,
-      resource: log.resource,
-      resourceId: log.resourceId,
-      details: log.details,
-      ipAddress: log.ipAddress,
-      userAgent: log.userAgent,
-      createdAt: log.createdAt,
-      statusCode: log.statusCode,
-      status: log.status,
-      oldValues: log.oldValues as unknown,
-      newValues: log.newValues as unknown,
-      user: log.user
-        ? {
-            id: log.user.id,
-            username: log.user.username,
-            fullName: log.user.fullName,
-            email: log.user.email,
-          }
-        : null,
-    }));
+    const enrichedLogs = logs.map((log) => {
+      const entry = {
+        id: log.id,
+        action: log.action,
+        resource: log.resource,
+        resourceId: log.resourceId,
+        details: log.details,
+        ipAddress: log.ipAddress,
+        userAgent: log.userAgent,
+        createdAt: log.createdAt,
+        statusCode: log.statusCode,
+        status: log.status,
+        oldValues: log.oldValues as unknown,
+        newValues: log.newValues as unknown,
+        user: log.user
+          ? {
+              id: log.user.id,
+              username: log.user.username,
+              fullName: log.user.fullName,
+              email: log.user.email,
+            }
+          : null,
+      };
+      return this.applyRoleFilter(entry, actorRole);
+    });
 
     return { data: enrichedLogs, total };
   }
 
-  async getSecurityDashboard() {
+  async getSecurityDashboard(actorRole?: string) {
     const today = new Date();
     const startOfDay = new Date(today.setHours(0, 0, 0, 0));
     const startOfWeek = new Date(today.setDate(today.getDate() - 7));
@@ -326,7 +410,7 @@ export class AuditService {
     };
   }
 
-  async getThreats(page: number = 1, limit: number = 50) {
+  async getThreats(page: number = 1, limit: number = 50, actorRole?: string) {
     const threatActions = [
       LogAction.FAILED_LOGIN,
       LogAction.UNAUTHORIZED_ACCESS,
@@ -345,27 +429,30 @@ export class AuditService {
     const [threats, total] = await query.getManyAndCount();
 
     return {
-      data: threats.map((threat) => ({
-        id: threat.id,
-        action: threat.action,
-        resource: threat.resource,
-        details: threat.details,
-        ipAddress: threat.ipAddress,
-        userAgent: threat.userAgent,
-        createdAt: threat.createdAt,
-        user: threat.user
-          ? {
-              id: threat.user.id,
-              username: threat.user.username,
-              email: threat.user.email,
-            }
-          : null,
-      })),
+      data: threats.map((threat) => {
+        const entry = {
+          id: threat.id,
+          action: threat.action,
+          resource: threat.resource,
+          details: threat.details,
+          ipAddress: threat.ipAddress,
+          userAgent: threat.userAgent,
+          createdAt: threat.createdAt,
+          user: threat.user
+            ? {
+                id: threat.user.id,
+                username: threat.user.username,
+                email: threat.user.email,
+              }
+            : null,
+        };
+        return this.applyRoleFilter(entry, actorRole);
+      }),
       total,
     };
   }
 
-  async getStatistics() {
+  async getStatistics(actorRole?: string) {
     const totalLogs = await this.auditLogRepository.count();
 
     const actionStats = await this.auditLogRepository
@@ -393,5 +480,49 @@ export class AuditService {
         count: parseInt(stat.count),
       })),
     };
+  }
+
+  async exportLogs(
+    format: string = 'json',
+    filters: AuditLogFilters = {},
+    actorRole?: string,
+  ): Promise<{ data: any[] } | string> {
+    if (!filters.startDate || !filters.endDate) {
+      throw new Error('startDate and endDate are required for export');
+    }
+
+    const MAX_EXPORT_ROWS = 1000;
+
+    const { data } = await this.getLogs(1, MAX_EXPORT_ROWS, filters, actorRole);
+
+    const exportData = data.slice(0, MAX_EXPORT_ROWS);
+
+    if (format === 'csv') {
+      return this.convertToCSV(exportData as Record<string, unknown>[]);
+    }
+
+    return { data: exportData };
+  }
+
+  private convertToCSV(data: Record<string, unknown>[]): string {
+    if (data.length === 0) return '';
+
+    const headers = Object.keys(data[0]);
+    const csvHeaders = headers.join(',');
+
+    const csvRows = data.map((row) =>
+      headers
+        .map((header) => {
+          const value = row[header];
+          if (value === null || value === undefined) return '';
+          if (typeof value === 'string') return value.replace(/"/g, '""');
+          if (typeof value === 'number' || typeof value === 'boolean')
+            return String(value);
+          return JSON.stringify(value);
+        })
+        .join(','),
+    );
+
+    return [csvHeaders, ...csvRows].join('\n');
   }
 }

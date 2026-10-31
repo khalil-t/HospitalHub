@@ -6,6 +6,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
+import { UserRole } from '../common/enums/user-role.enum';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -45,14 +46,15 @@ export class AuthService {
   async login(user: User) {
     const fullUser = await this.usersService.findOne(user.id);
 
-    const isExternalDoctor = false;
+    const roles = fullUser.roles?.map((role) => role.name) || [];
+    const isExternalDoctor = roles.includes(UserRole.EXTERNAL_DOCTOR);
 
     const payload = {
       email: fullUser.email,
       username: fullUser.username,
       sub: fullUser.id,
       fullName: fullUser.fullName,
-      roles: fullUser.roles?.map((role) => role.name) || [],
+      roles,
       serviceId: fullUser.service?.id || null,
       isExternalDoctor,
     };

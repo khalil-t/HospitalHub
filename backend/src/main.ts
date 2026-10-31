@@ -6,6 +6,8 @@ import {
 import { NestFactory, Reflector } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { AuditService } from './audit/audit.service';
+import { AuditInterceptor } from './audit/interceptor/audit.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -33,6 +35,9 @@ async function bootstrap() {
       enableCircularCheck: true,
     }),
   );
+
+  const auditService = app.get(AuditService);
+  app.useGlobalInterceptors(new AuditInterceptor(auditService));
 
   const port = Number(process.env.PORT) || 3002;
   await app.listen(port, '0.0.0.0');

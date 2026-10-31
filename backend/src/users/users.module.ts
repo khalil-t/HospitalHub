@@ -7,9 +7,15 @@ import { UsersController } from './users.controller';
 import { RolesModule } from '../roles/roles.module';
 import { ServicesModule } from '../services/services.module';
 import { EncryptionService } from '../common/encryption.service';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User]), RolesModule, ServicesModule],
+  imports: [
+    TypeOrmModule.forFeature([User]),
+    RolesModule,
+    ServicesModule,
+    AuditModule,
+  ],
   controllers: [UsersController],
   providers: [UsersService, UsersRepository, EncryptionService],
   exports: [UsersRepository, UsersService, TypeOrmModule],

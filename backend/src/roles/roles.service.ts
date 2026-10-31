@@ -4,6 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
   BadRequestException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -38,8 +39,35 @@ import {
   toRoleResponse,
 } from './role-response.mapper';
 
+const CANONICAL_ROLES: ReadonlyArray<{ name: UserRole; description: string }> =
+  [
+    { name: UserRole.SUPER_ADMIN, description: 'Full system administration' },
+    { name: UserRole.SERVICE_HEAD, description: 'Manages a clinical service' },
+    {
+      name: UserRole.INTERNAL_DOCTOR,
+      description: 'Internal clinician with patient access',
+    },
+    {
+      name: UserRole.EXTERNAL_DOCTOR,
+      description: 'Approved external clinician with shared access',
+    },
+    {
+      name: UserRole.ADMISSION_AGENT,
+      description: 'Patient intake and demographics',
+    },
+    {
+      name: UserRole.VERIFICATION_CLERK,
+      description: 'Audit and compliance reviewer',
+    },
+    { name: UserRole.RADIOLOGIST, description: 'Imaging specialist' },
+    {
+      name: UserRole.LABORATORY_TECHNICIAN,
+      description: 'Laboratory specialist',
+    },
+  ];
+
 @Injectable()
-export class RolesService {
+export class RolesService implements OnModuleInit {
   constructor(
     @InjectRepository(Role)
     private roleRepository: Repository<Role>,
@@ -49,6 +77,28 @@ export class RolesService {
     private permissionRepository: Repository<Permission>,
     private encryptionService: EncryptionService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.ensureCanonicalRoles();
+  }
+
+  private async ensureCanonicalRoles(): Promise<void> {
+    const existingRoles = await this.roleRepository.find({
+      select: ['name'],
+    });
+    const existingNames = new Set(existingRoles.map((role) => role.name));
+    const missingRoles = CANONICAL_ROLES.filter(
+      (role) => !existingNames.has(role.name),
+    );
+
+    if (!missingRoles.length) {
+      return;
+    }
+
+    await this.roleRepository.save(
+      missingRoles.map((role) => this.roleRepository.create(role)),
+    );
+  }
 
   private decryptUserData(user: User): User {
     if (user.fullName) {

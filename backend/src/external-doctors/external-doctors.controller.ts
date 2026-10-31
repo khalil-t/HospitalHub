@@ -56,9 +56,12 @@ export class ExternalDoctorsController {
   }
 
   @Get('requests/:id')
-  @Roles(UserRole.SUPER_ADMIN)
-  async getRequest(@Param('id') id: string) {
-    return this.externalDoctorsService.findOne(id);
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMISSION_AGENT)
+  async getRequest(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.externalDoctorsService.findOneForActor(id, user);
   }
 
   @Post('requests/:id/review')

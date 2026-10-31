@@ -19,6 +19,8 @@ interface AuditRequest {
   user?: User;
 }
 
+const SKIP_ROUTES = ['/health', '/metrics', '/favicon.ico', '/'];
+
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
   constructor(private auditService: AuditService) {}
@@ -26,8 +28,11 @@ export class AuditInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<AuditRequest>();
 
-    const skipRoutes = ['/health', '/metrics', '/favicon.ico'];
-    if (skipRoutes.some((route) => request.url.includes(route))) {
+    if (
+      SKIP_ROUTES.some((route) => request.url === route) ||
+      request.url.startsWith('/health') ||
+      request.url.startsWith('/metrics')
+    ) {
       return next.handle();
     }
 
@@ -61,10 +66,9 @@ export class AuditInterceptor implements NestInterceptor {
     const action = this.getActionFromMethodAndUrl(method, url);
     const resource = this.getResourceFromUrl(url);
 
-    let details = `${method} ${url} - ${status} (${duration}ms)`;
-    if (errorMessage) {
-      details += ` - Error: ${errorMessage}`;
-    }
+    const details = `${method} ${url} - ${status} (${duration}ms)${
+      errorMessage ? ` - Error: ${errorMessage}` : ''
+    }`;
 
     void this.auditService
       .createLog(
@@ -84,8 +88,6 @@ export class AuditInterceptor implements NestInterceptor {
   }
 
   private getActionFromMethodAndUrl(method: string, url: string): LogAction {
-    if (url.includes('/auth/login')) return LogAction.LOGIN;
-    if (url.includes('/auth/logout')) return LogAction.LOGOUT;
     if (url.includes('/patients') && method === 'POST')
       return LogAction.PATIENT_CREATED;
     if (url.includes('/patients') && method === 'GET')

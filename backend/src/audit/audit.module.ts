@@ -4,11 +4,11 @@ import { AuditService } from './audit.service';
 import { AuditController } from './audit.controller';
 import { AuditLog } from './entities/audit-log.entity';
 import { User } from '../users/entities/user.entity';
-import { AuthModule } from '../auth/auth.module';
+import { EncryptionService } from '../common/encryption.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([AuditLog, User]), AuthModule],
-  providers: [AuditService],
+  imports: [TypeOrmModule.forFeature([AuditLog, User])],
+  providers: [AuditService, EncryptionService],
   controllers: [AuditController],
   exports: [AuditService],
 })

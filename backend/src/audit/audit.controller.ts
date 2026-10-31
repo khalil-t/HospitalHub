@@ -6,10 +6,20 @@ import {
   Query,
   Request,
   Ip,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuditService } from './audit.service';
 import { LogAction } from './entities/audit-log.entity';
 import { User } from '../users/entities/user.entity';
+import { Roles } from '../common/decorators/roles.decorator';
+import { UserRole } from '../common/enums/user-role.enum';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
+import { CreateAuditLogDto } from './dto/create-audit-log.dto';
 
 @Controller('audit')
 export class AuditController {
@@ -17,43 +27,28 @@ export class AuditController {
 
   @Post('log')
   async logAction(
-    @Body()
-    logData: {
-      action: string;
-      resource: string;
-      resourceId?: string;
-      details: string;
-      oldValues?: any;
-      newValues?: any;
-    },
-    @Request() req: { user?: User; headers: Record<string, string> },
+    @Body() logData: CreateAuditLogDto,
+    @Request()
+    req: { user?: AuthenticatedUser; headers: Record<string, string> },
     @Ip() ip: string,
   ) {
-    try {
-      const action = logData.action as LogAction;
+    const user = req.user ?? null;
 
-      await this.auditService.createLog(
-        action,
-        logData.resource,
-        logData.resourceId,
-        req.user,
-        ip || '127.0.0.1',
-        req.headers['user-agent'] || 'Unknown',
-        logData.details,
-        logData.oldValues,
-        logData.newValues,
-      );
+    await this.auditService.createLog(
+      logData.action as LogAction,
+      logData.resource,
+      logData.resourceId,
+      user as any,
+      ip || '127.0.0.1',
+      req.headers['user-agent'] || 'Unknown',
+      logData.details || '',
+    );
 
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
+    return { success: true };
   }
 
   @Get('logs')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.VERIFICATION_CLERK)
   async getLogs(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '50',
@@ -62,6 +57,7 @@ export class AuditController {
     @Query('userId') userId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @CurrentUser() actor?: AuthenticatedUser,
   ) {
     const filters = {
       action,
@@ -71,34 +67,49 @@ export class AuditController {
       endDate: endDate ? new Date(endDate) : undefined,
     };
 
-    return this.auditService.getLogs(parseInt(page), parseInt(limit), filters);
+    return this.auditService.getLogs(
+      parseInt(page),
+      parseInt(limit),
+      filters,
+      this.actorRole(actor!),
+    );
   }
 
   @Get('dashboard')
-  async getSecurityDashboard() {
-    return this.auditService.getSecurityDashboard();
+  @Roles(UserRole.SUPER_ADMIN, UserRole.VERIFICATION_CLERK)
+  async getSecurityDashboard(@CurrentUser() actor: AuthenticatedUser) {
+    return this.auditService.getSecurityDashboard(this.actorRole(actor));
   }
 
   @Get('threats')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.VERIFICATION_CLERK)
   async getThreats(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '50',
+    @CurrentUser() actor?: AuthenticatedUser,
   ) {
-    return this.auditService.getThreats(parseInt(page), parseInt(limit));
+    return this.auditService.getThreats(
+      parseInt(page),
+      parseInt(limit),
+      this.actorRole(actor!),
+    );
   }
 
   @Get('statistics')
-  async getStatistics() {
-    return this.auditService.getStatistics();
+  @Roles(UserRole.SUPER_ADMIN, UserRole.VERIFICATION_CLERK)
+  async getStatistics(@CurrentUser() actor: AuthenticatedUser) {
+    return this.auditService.getStatistics(this.actorRole(actor));
   }
 
   @Get('export')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.VERIFICATION_CLERK)
   async exportLogs(
     @Query('format') format: string = 'json',
     @Query('action') action?: string,
     @Query('resource') resource?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @CurrentUser() actor?: AuthenticatedUser,
   ) {
     const filters = {
       action,
@@ -107,39 +118,21 @@ export class AuditController {
       endDate: endDate ? new Date(endDate) : undefined,
     };
 
-    const { data } = await this.auditService.getLogs(1, 10000, filters);
-
-    if (format === 'csv') {
-      return this.convertToCSV(data as Record<string, unknown>[]);
-    }
-
-    return data as Record<string, unknown>[];
-  }
-
-  private convertToCSV(data: Record<string, unknown>[]): string {
-    if (data.length === 0) return '';
-
-    const headers = Object.keys(data[0]);
-    const csvHeaders = headers.join(',');
-
-    const csvRows = data.map((row) =>
-      headers
-        .map((header) => {
-          const value = row[header];
-          if (value === null || value === undefined) return '';
-          if (typeof value === 'string') return value.replace(/"/g, '""');
-          if (typeof value === 'number' || typeof value === 'boolean')
-            return String(value);
-          return JSON.stringify(value);
-        })
-        .join(','),
+    return this.auditService.exportLogs(
+      format,
+      filters,
+      this.actorRole(actor!),
     );
-
-    return [csvHeaders, ...csvRows].join('\n');
   }
 
   @Post('seed-test-logs')
-  async seedTestLogs() {
+  @Roles(UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async seedTestLogs(@CurrentUser() actor: AuthenticatedUser) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new NotFoundException();
+    }
+
     const systemUser = await this.auditService.getSystemUser();
 
     const testLogs = [
@@ -165,13 +158,19 @@ export class AuditController {
         log.action,
         log.resource,
         undefined,
-        systemUser,
+        actor as any,
         '127.0.0.1',
         'Test User Agent',
-        log.details,
+        log.details || '',
       );
     }
 
     return { message: 'Test logs created successfully' };
+  }
+
+  private actorRole(actor: AuthenticatedUser): string {
+    return actor.roles.includes(UserRole.SUPER_ADMIN)
+      ? UserRole.SUPER_ADMIN
+      : UserRole.VERIFICATION_CLERK;
   }
 }

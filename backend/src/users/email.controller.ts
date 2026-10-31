@@ -6,6 +6,8 @@ import {
   Post,
 } from '@nestjs/common';
 import { EmailService } from './email.service';
+import { Roles } from '../common/decorators/roles.decorator';
+import { UserRole } from '../common/enums/user-role.enum';
 
 interface SendEmailBody {
   to?: string;
@@ -14,6 +16,7 @@ interface SendEmailBody {
   html?: string;
 }
 
+@Roles(UserRole.SUPER_ADMIN)
 @Controller('email')
 export class EmailController {
   constructor(private readonly emailService: EmailService) {}

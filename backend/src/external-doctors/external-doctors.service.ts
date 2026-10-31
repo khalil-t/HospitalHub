@@ -123,6 +123,24 @@ export class ExternalDoctorsService implements OnModuleInit, OnModuleDestroy {
     return query.orderBy('request.createdAt', 'DESC').getMany();
   }
 
+  private toIntakeProjection(request: ExternalDoctorRequest) {
+    return {
+      id: request.id,
+      firstName: request.firstName,
+      lastName: request.lastName,
+      email: request.email,
+      phoneNumber: request.phoneNumber,
+      specialization: request.specialization,
+      institution: request.institution,
+      reasonForAccess: request.reasonForAccess,
+      requestedPatientNames: request.requestedPatientNames,
+      status: request.status,
+      rejectionReason: request.rejectionReason,
+      createdAt: request.createdAt,
+      updatedAt: request.updatedAt,
+    };
+  }
+
   async findAllForIntake(status?: string): Promise<any[]> {
     const query =
       this.externalDoctorRequestRepository.createQueryBuilder('request');
@@ -136,22 +154,27 @@ export class ExternalDoctorsService implements OnModuleInit, OnModuleDestroy {
 
     const requests = await query.orderBy('request.createdAt', 'DESC').getMany();
 
-    return requests.map((r) => ({
-      id: r.id,
-      firstName: r.firstName,
-      lastName: r.lastName,
-      email: r.email,
-      phoneNumber: r.phoneNumber,
-      specialization: r.specialization,
-      institution: r.institution,
-      reasonForAccess: r.reasonForAccess,
-      requestedPatientNames: r.requestedPatientNames,
-      status: r.status,
-      rejectionReason: r.rejectionReason,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
-      accountExpiresAt: r.accountExpiresAt,
-    }));
+    return requests.map((request) => this.toIntakeProjection(request));
+  }
+
+  async findOneForActor(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<
+    ExternalDoctorRequest | ReturnType<typeof this.toIntakeProjection>
+  > {
+    const roles = user.roles || [];
+
+    if (roles.includes(UserRole.SUPER_ADMIN)) {
+      return this.findOne(id);
+    }
+
+    if (roles.includes(UserRole.ADMISSION_AGENT)) {
+      const request = await this.findOne(id);
+      return this.toIntakeProjection(request);
+    }
+
+    throw new ForbiddenException('Access denied');
   }
 
   async findOne(id: string): Promise<ExternalDoctorRequest> {

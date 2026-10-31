@@ -98,8 +98,6 @@ export class PatientsController {
     UserRole.SERVICE_HEAD,
     UserRole.INTERNAL_DOCTOR,
     UserRole.EXTERNAL_DOCTOR,
-    UserRole.ADMISSION_AGENT,
-    UserRole.VERIFICATION_CLERK,
     UserRole.RADIOLOGIST,
     UserRole.LABORATORY_TECHNICIAN,
   )

@@ -16,6 +16,7 @@ import Lottie from 'lottie-react';
 import medical2 from '@/animations/medical2.json';
 import { authService } from '@/services/authService';
 import { auditService } from '@/services/auditService';
+import { USER_ROLE } from '@/lib/roles';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -51,19 +52,19 @@ const Login = () => {
         return;
       }
 
-      if (userRoles.includes('super_admin')) {
+      if (userRoles.includes(USER_ROLE.SUPER_ADMIN)) {
         navigate('/admin-dashboard', { replace: true });
-      } else if (userRoles.includes('internal_doctor')) {
+      } else if (userRoles.includes(USER_ROLE.INTERNAL_DOCTOR)) {
         navigate('/doctor-dashboard', { replace: true });
-      } else if (userRoles.includes('service_head')) {
+      } else if (userRoles.includes(USER_ROLE.SERVICE_HEAD)) {
         navigate('/ServiceChef-dashboard', { replace: true });
-      } else if (userRoles.includes('admission_agent')) {
+      } else if (userRoles.includes(USER_ROLE.ADMISSION_AGENT)) {
         navigate('/AdmissionsOfficer-dashboard', { replace: true });
-      } else if (userRoles.includes('verification_clerk')) {
+      } else if (userRoles.includes(USER_ROLE.VERIFICATION_CLERK)) {
         navigate('/DPO-dashboard', { replace: true });
-      } else if (userRoles.includes('RADIOLOGIST')) {
+      } else if (userRoles.includes(USER_ROLE.RADIOLOGIST)) {
         navigate('/Radiologist-dashboard', { replace: true });
-      } else if (userRoles.includes('LAB_TECHNICIAN')) {
+      } else if (userRoles.includes(USER_ROLE.LABORATORY_TECHNICIAN)) {
         navigate('/LaboratoryTechnician-dashboard', { replace: true });
       }
     } catch (error) {

@@ -1,11 +1,13 @@
 import {
   Controller,
+  Get,
   Post,
   Body,
   UseGuards,
   HttpCode,
   HttpStatus,
-  Get,
+  Ip,
+  Req,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -15,10 +17,22 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
 import { User } from '../users/entities/user.entity';
+import { AuditService } from '../audit/audit.service';
+import { LogAction } from '../audit/entities/audit-log.entity';
+import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
+
+interface AuthRequest {
+  user?: AuthenticatedUser;
+  headers: Record<string, string>;
+  ip?: string;
+}
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private auditService: AuditService,
+  ) {}
 
   @Public()
   @Throttle({
@@ -36,8 +50,23 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto, @CurrentUser() user: User) {
-    return this.authService.login(user);
+  async login(
+    @Body() loginDto: LoginDto,
+    @CurrentUser() user: User,
+    @Req() req: AuthRequest,
+    @Ip() ip: string,
+  ) {
+    const result = await this.authService.login(user);
+
+    await this.auditService.logAuthentication(
+      LogAction.LOGIN,
+      user,
+      ip || req.ip || '127.0.0.1',
+      req.headers['user-agent'] || 'Unknown',
+      `User logged in: ${user.email}`,
+    );
+
+    return result;
   }
 
   @Public()
@@ -52,7 +81,19 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@CurrentUser() user: User) {
+  async logout(
+    @CurrentUser() user: User,
+    @Req() req: AuthRequest,
+    @Ip() ip: string,
+  ) {
+    await this.auditService.logAuthentication(
+      LogAction.LOGOUT,
+      user,
+      ip || req.ip || '127.0.0.1',
+      req.headers['user-agent'] || 'Unknown',
+      `User logged out: ${user.email}`,
+    );
+
     return this.authService.logout(user.id);
   }
 

@@ -4,7 +4,8 @@ node_modules/
 # Build output
 dist/
 build/
-
+/docs
+/reports
 # Environment files (never commit env files, including examples)
 .env
 .env.*
