@@ -274,19 +274,4 @@ export const auditService = {
       null,
     );
   },
-
-  async createTestLogs() {
-    const response = await fetch(`${API_URL}/audit/seed-test-logs`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to create test logs: ${response.status}`);
-    }
-
-    return await response.json();
-  },
 };

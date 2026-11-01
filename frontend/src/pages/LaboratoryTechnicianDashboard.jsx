@@ -18,9 +18,13 @@ import {
 import { User, Stethoscope, Plus, Send, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/useAuth';
 
 const LaboratoryTechnicianDashboard = () => {
   const [activeTab, setActiveTab] = useState('addResults');
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [labResultForm, setLabResultForm] = useState({
     medicalRecordId: '',
     patientName: '',
@@ -167,6 +171,10 @@ const LaboratoryTechnicianDashboard = () => {
               variant="outline"
               size="sm"
               className="border-border/50 bg-card/50 backdrop-blur-sm hover:bg-secondary/50 transition-all duration-200"
+              onClick={async () => {
+                await logout();
+                navigate('/login');
+              }}
             >
               <User className="mr-2 h-4 w-4" />
               Logout

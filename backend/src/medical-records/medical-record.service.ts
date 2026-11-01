@@ -367,6 +367,30 @@ export class MedicalRecordService {
   ): Promise<MedicalRecordResponseDto[]> {
     this.assertDoctorScope(user, doctorId);
 
+    if (user.serviceId) {
+      const patients = await this.patientRepo
+        .createQueryBuilder('patient')
+        .innerJoin('patient.services', 'service')
+        .where('service.id = :serviceId', { serviceId: user.serviceId })
+        .getMany();
+
+      return patients.map((patient) =>
+        this.toResponse({
+          id: crypto.randomUUID(),
+          patient,
+          title: '',
+          content: '',
+          diagnosis: '',
+          allergies: [],
+          recordDate: new Date(),
+          responsibleDoctors: [],
+          prescriptions: [],
+          authorId: user.id,
+          createdAt: new Date(),
+        } as any),
+      );
+    }
+
     const records = await this.recordRepo
       .createQueryBuilder('mr')
       .innerJoin(

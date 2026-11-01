@@ -19,9 +19,13 @@ import {
 import { User, Send, Eye, Plus, Stethoscope } from 'lucide-react';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/useAuth';
 
 const RadiologistDashboard = () => {
   const [activeTab, setActiveTab] = useState('addImaging');
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [imagingForm, setImagingForm] = useState({
     medicalRecordId: '',
     patientName: '',
@@ -127,6 +131,10 @@ const RadiologistDashboard = () => {
               variant="outline"
               size="sm"
               className="border-border/50 bg-card/50 backdrop-blur-sm hover:bg-secondary/50 transition-all duration-200"
+              onClick={async () => {
+                await logout();
+                navigate('/login');
+              }}
             >
               <User className="mr-2 h-4 w-4" />
               Logout

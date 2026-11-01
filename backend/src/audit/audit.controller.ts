@@ -7,9 +7,7 @@ import {
   Request,
   Ip,
   UseGuards,
-  HttpCode,
   HttpStatus,
-  NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { AuditService } from './audit.service';
@@ -123,49 +121,6 @@ export class AuditController {
       filters,
       this.actorRole(actor!),
     );
-  }
-
-  @Post('seed-test-logs')
-  @Roles(UserRole.SUPER_ADMIN)
-  @HttpCode(HttpStatus.OK)
-  async seedTestLogs(@CurrentUser() actor: AuthenticatedUser) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new NotFoundException();
-    }
-
-    const systemUser = await this.auditService.getSystemUser();
-
-    const testLogs = [
-      {
-        action: LogAction.LOGIN,
-        resource: 'authentication',
-        details: 'Test login entry',
-      },
-      {
-        action: LogAction.PATIENT_CREATED,
-        resource: 'patient',
-        details: 'Test patient creation',
-      },
-      {
-        action: LogAction.RECORD_VIEWED,
-        resource: 'medical_record',
-        details: 'Test record view',
-      },
-    ];
-
-    for (const log of testLogs) {
-      await this.auditService.createLog(
-        log.action,
-        log.resource,
-        undefined,
-        actor as any,
-        '127.0.0.1',
-        'Test User Agent',
-        log.details || '',
-      );
-    }
-
-    return { message: 'Test logs created successfully' };
   }
 
   private actorRole(actor: AuthenticatedUser): string {

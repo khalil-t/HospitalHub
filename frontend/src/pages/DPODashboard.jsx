@@ -25,7 +25,6 @@ import {
   AlertTriangle,
   Shield,
   Eye,
-  TestTube,
 } from "lucide-react";
 import { toast } from "sonner";
 import { auditService } from "@/services/auditService";
@@ -125,28 +124,8 @@ const DPODashboard = () => {
   }, []);
 
   useEffect(() => {
-    fetchLogs(currentPage);
+    fetchLogs(currentPage, filters);
   }, [currentPage, filters]);
-
-  const testConnection = async () => {
-    try {
-      setIsLoading(true);
-      toast.info("Creating test logs...");
-
-      await auditService.createTestLogs();
-
-      toast.success("Test logs created successfully!");
-
-      setTimeout(() => {
-        fetchLogs(1, true);
-        fetchDashboardStats();
-      }, 1000);
-    } catch (error) {
-      toast.error(`Failed to create test logs: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleSearch = (searchValue) => {
     setSearchTerm(searchValue);
@@ -206,15 +185,6 @@ const DPODashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button
-              onClick={testConnection}
-              disabled={isLoading}
-              variant="outline"
-              size="sm"
-            >
-              <TestTube className="mr-2 h-4 w-4" />
-              Create Test Logs
-            </Button>
             <Button
               onClick={refreshData}
               disabled={isLoading}
@@ -367,10 +337,6 @@ const DPODashboard = () => {
                 <div className="flex gap-2 justify-center mt-4">
                   <Button onClick={() => fetchLogs(1, true)} size="sm">
                     Refresh Logs
-                  </Button>
-                  <Button onClick={testConnection} variant="outline" size="sm">
-                    <TestTube className="mr-2 h-4 w-4" />
-                    Create Test Logs
                   </Button>
                 </div>
               </div>
