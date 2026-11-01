@@ -405,15 +405,11 @@ The end-to-end tests require a test PostgreSQL database and the `TEST_DB_*` envi
 
 ## Known Limitations
 
-- The 2FA and password-reset screens are frontend stubs; there are no backend endpoints for them yet.
-- Refresh tokens are stored per user but are not rotated on every refresh, and there is no per-account lockout.
 - New-account credentials are sent by email in plaintext. A one-time set-password link is a planned improvement.
 - Patient list and search results are capped at 100 rows and are not paginated.
-- CORS currently allows all origins and should be restricted before production deployment.
 - The Compose backend service passes only database variables; a full-container deployment needs the remaining backend environment variables.
 - The Dockerfiles use Node 18; update them to Node 20 or newer for NestJS 11 and current Vite releases.
 - AES encryption has no automatic key-rotation mechanism.
-- Production database migrations are not included; schema synchronization is enabled only outside production.
 
 ## Further Reading
 
