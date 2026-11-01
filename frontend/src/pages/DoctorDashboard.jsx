@@ -94,7 +94,7 @@ const DoctorDashboard = () => {
   const [activeTab, setActiveTab] = useState("patients");
   const navigate = useNavigate();
   const [patients, setPatients] = useState([]);
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const recordPermissions = getMedicalRecordActionPermissions(
     user?.roles || [],
@@ -439,7 +439,10 @@ const DoctorDashboard = () => {
             <ThemeToggle />
             <Button
               variant="outline"
-              onClick={() => navigate("/login")}
+              onClick={async () => {
+                await logout();
+                navigate("/login");
+              }}
               size="sm"
               className="border-border/50 bg-card/50 backdrop-blur-sm hover:bg-secondary/50 transition-all duration-200"
             >

@@ -88,7 +88,7 @@ const AdmissionsOfficerDashboard = () => {
     insuranceNumber: ""
   });
   const [services, setServices] = useState([]);
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [externDoctorRequest, setExternDoctorRequest] = useState({
     firstName: "",
@@ -122,19 +122,8 @@ const AdmissionsOfficerDashboard = () => {
 
   const handleLogout = async () => {
     try {
-      await auditService.logAction('LOGOUT', 'authentication', null,
-        'User initiated logout from Admissions Dashboard');
-
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-
-      toast.success("Logged out successfully", {
-        description: "You have been logged out of the system"
-      });
-
+      await logout();
       navigate('/login');
-
     } catch (error) {
       await auditService.logAction('LOGOUT', 'authentication', null,
         `Logout error: ${error.message}`);

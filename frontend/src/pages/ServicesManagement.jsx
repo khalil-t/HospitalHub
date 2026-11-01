@@ -21,18 +21,29 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Stethoscope, Trash2, Edit, Save, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/useAuth';
+import { isSuperAdmin } from '@/lib/roles';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('access_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 const loadServices = async () => {
-  const res = await fetch(`${API_URL}/services`);
+  const res = await fetch(`${API_URL}/services`, {
+    headers: { ...getAuthHeaders() },
+  });
   if (!res.ok) {
-    return { ok: false, data: null };
+    return { ok: false, data: null, status: res.status };
   }
   return { ok: true, data: await res.json() };
 };
 
 const ServicesManagement = () => {
+  const { user } = useAuth();
+  const canManageServices = isSuperAdmin(user?.roles);
   const [services, setServices] = useState([]);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -47,6 +58,8 @@ const ServicesManagement = () => {
       const result = await loadServices();
       if (result.ok) {
         setServices(result.data);
+      } else if (result.status === 401) {
+        toast.error('Please log in to view services');
       } else {
         toast.error('Failed to fetch services');
       }
@@ -62,6 +75,8 @@ const ServicesManagement = () => {
         if (!active) return;
         if (result.ok) {
           setServices(result.data);
+        } else if (result.status === 401) {
+          toast.error('Please log in to view services');
         } else {
           toast.error('Failed to fetch services');
         }
@@ -77,6 +92,10 @@ const ServicesManagement = () => {
   }, []);
 
   const openServiceModal = (service = null) => {
+    if (!canManageServices) {
+      return;
+    }
+
     setEditingItem(service);
     if (service) {
       setServiceForm({
@@ -98,6 +117,11 @@ const ServicesManagement = () => {
   const handleServiceSubmit = async (e) => {
     e.preventDefault();
 
+    if (!canManageServices) {
+      toast.error('You do not have permission to manage services');
+      return;
+    }
+
     if (!serviceForm.name || !serviceForm.code) {
       toast.error('Please fill in required fields (Name and Code)');
       return;
@@ -118,18 +142,29 @@ const ServicesManagement = () => {
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.message || `Error: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 403) {
+          toast.error('You do not have permission to manage services');
+        } else if (response.status === 400) {
+          toast.error(errorData.message || 'Invalid service details');
+        } else {
+          toast.error(errorData.message || `Error: ${response.status}`);
+        }
         return;
       }
 
       toast.success(
-        editingItem ? 'Service updated successfully' : 'Service created successfully',
+        editingItem
+          ? 'Service updated successfully'
+          : 'Service created successfully',
       );
 
       await fetchServices();
@@ -140,6 +175,11 @@ const ServicesManagement = () => {
   };
 
   const deleteService = async (serviceId) => {
+    if (!canManageServices) {
+      toast.error('You do not have permission to manage services');
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this service?')) {
       return;
     }
@@ -147,11 +187,16 @@ const ServicesManagement = () => {
     try {
       const response = await fetch(`${API_URL}/services/${serviceId}`, {
         method: 'DELETE',
+        headers: { ...getAuthHeaders() },
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.message || `Failed to delete service`);
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 403) {
+          toast.error('You do not have permission to manage services');
+        } else {
+          toast.error(errorData.message || 'Failed to delete service');
+        }
         return;
       }
 
@@ -185,13 +230,15 @@ const ServicesManagement = () => {
                 Manage hospital service departments
               </CardDescription>
             </div>
-            <Button
-              className="bg-green-500 text-white"
-              onClick={() => openServiceModal()}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Service
-            </Button>
+            {canManageServices && (
+              <Button
+                className="bg-green-500 text-white"
+                onClick={() => openServiceModal()}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Service
+              </Button>
+            )}
           </div>
         </CardHeader>
 
@@ -212,24 +259,26 @@ const ServicesManagement = () => {
                         {service.code}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openServiceModal(service)}
-                        className="text-primary hover:bg-primary/10 h-8 w-8"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteService(service.id)}
-                        className="text-red-500 hover:bg-red-100 h-8 w-8"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    {canManageServices && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openServiceModal(service)}
+                          className="text-primary hover:bg-primary/10 h-8 w-8"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteService(service.id)}
+                          className="text-red-500 hover:bg-red-100 h-8 w-8"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardHeader>
 
@@ -251,15 +300,19 @@ const ServicesManagement = () => {
                 No Services Found
               </h3>
               <p className="text-muted-foreground mb-4">
-                Create your first hospital service to get started
+                {canManageServices
+                  ? 'Create your first hospital service to get started'
+                  : 'No services are available yet'}
               </p>
-              <Button
-                className="bg-green-500 text-white"
-                onClick={() => openServiceModal()}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add First Service
-              </Button>
+              {canManageServices && (
+                <Button
+                  className="bg-green-500 text-white"
+                  onClick={() => openServiceModal()}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add First Service
+                </Button>
+              )}
             </div>
           )}
         </CardContent>

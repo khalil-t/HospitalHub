@@ -1,4 +1,5 @@
 import { auditService } from "./auditService.js";
+import { authService } from "./authService.js";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const getAuthToken = () => localStorage.getItem("access_token");
@@ -7,6 +8,32 @@ const getAuthHeaders = () => {
   const token = getAuthToken();
 
   return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const apiFetch = async (url, options = {}) => {
+  let response = await fetch(url, options);
+
+  if (
+    response.status === 401 &&
+    typeof url === "string" &&
+    !url.includes("/auth/login") &&
+    !url.includes("/auth/refresh")
+  ) {
+    try {
+      const refreshed = await authService.refreshToken();
+      if (refreshed?.access_token) {
+        const retryHeaders = {
+          ...(options.headers || {}),
+          Authorization: `Bearer ${refreshed.access_token}`,
+        };
+        response = await fetch(url, { ...options, headers: retryHeaders });
+      }
+    } catch {
+      // Refresh failed; authService already cleared session and notified listeners
+    }
+  }
+
+  return response;
 };
 
 const readError = async (response, fallback) => {
@@ -18,7 +45,7 @@ const readError = async (response, fallback) => {
 
 export const serviceApi = {
   findByCode: async (code) => {
-    const response = await fetch(`${API_URL}/services/code/${code}`, {
+    const response = await apiFetch(`${API_URL}/services/code/${code}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -44,7 +71,7 @@ export const serviceApi = {
   },
 
   getAllServices: async () => {
-    const response = await fetch(`${API_URL}/services`, {
+    const response = await apiFetch(`${API_URL}/services`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -71,7 +98,7 @@ export const serviceApi = {
 
 export const patientService = {
   createPatient: async (patientData) => {
-    const response = await fetch(`${API_URL}/patients`, {
+    const response = await apiFetch(`${API_URL}/patients`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -106,7 +133,7 @@ export const patientService = {
   updatePatient: async (id, updateData) => {
     const oldPatient = await this.getPatientById(id).catch(() => null);
 
-    const response = await fetch(`${API_URL}/patients/${id}`, {
+    const response = await apiFetch(`${API_URL}/patients/${id}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -147,7 +174,7 @@ export const patientService = {
     }
 
     const url = `${API_URL}/patients/search?${params.toString()}`;
-    const response = await fetch(url, { headers: getAuthHeaders() });
+    const response = await apiFetch(url, { headers: getAuthHeaders() });
     const data = await response.json();
 
     if (!response.ok) {
@@ -160,7 +187,7 @@ export const patientService = {
   },
 
   getPatientsWithoutDoctorFromService: async (serviceId) => {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/patients/service/${serviceId}/no-doctor`,
       { headers: getAuthHeaders() },
     );
@@ -184,7 +211,7 @@ export const patientService = {
   deletePatient: async (id) => {
     const patient = await this.getPatientById(id).catch(() => null);
 
-    const response = await fetch(`${API_URL}/patients/${id}`, {
+    const response = await apiFetch(`${API_URL}/patients/${id}`, {
       method: "DELETE",
       headers: getAuthHeaders(),
     });
@@ -210,7 +237,7 @@ export const patientService = {
 
   getAllPatientsByService: async (serviceId) => {
     const url = `${API_URL}/patients/service/${serviceId}/all`;
-    const response = await fetch(url, { headers: getAuthHeaders() });
+    const response = await apiFetch(url, { headers: getAuthHeaders() });
     const data = await response.json();
 
     if (!response.ok) {
@@ -228,7 +255,7 @@ export const patientService = {
   },
 
   addServiceToPatient: async (patientId, serviceId) => {
-    const response = await fetch(`${API_URL}/patients/${patientId}/services`, {
+    const response = await apiFetch(`${API_URL}/patients/${patientId}/services`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -259,7 +286,7 @@ export const patientService = {
   },
 
   removeServiceFromPatient: async (patientId, serviceId) => {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/patients/${patientId}/services/${serviceId}`,
       {
         method: "DELETE",
@@ -287,7 +314,7 @@ export const patientService = {
   },
 
   fetchAllPatients: async () => {
-    const response = await fetch(`${API_URL}/patients`, {
+    const response = await apiFetch(`${API_URL}/patients`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -312,7 +339,7 @@ export const patientService = {
   },
 
   getPatientById: async (id) => {
-    const response = await fetch(`${API_URL}/patients/${id}`, {
+    const response = await apiFetch(`${API_URL}/patients/${id}`, {
       headers: getAuthHeaders(),
     });
 
@@ -354,7 +381,7 @@ export const medicalRecordService = {
       })),
     };
 
-    const response = await fetch(`${API_URL}/medical-records/${id}`, {
+    const response = await apiFetch(`${API_URL}/medical-records/${id}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -382,7 +409,7 @@ export const medicalRecordService = {
   },
 
   async createMedicalRecord(recordData) {
-    const response = await fetch(`${API_URL}/medical-records`, {
+    const response = await apiFetch(`${API_URL}/medical-records`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -413,7 +440,7 @@ export const medicalRecordService = {
   },
 
   async getAllMedicalRecords() {
-    const response = await fetch(`${API_URL}/medical-records`, {
+    const response = await apiFetch(`${API_URL}/medical-records`, {
       headers: getAuthHeaders(),
     });
     const data = await response.json();
@@ -433,7 +460,7 @@ export const medicalRecordService = {
   },
 
   async getMedicalRecordByPatient(patientId) {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/medical-records/patient/${patientId}`,
       { headers: getAuthHeaders() },
     );
@@ -462,7 +489,7 @@ export const medicalRecordService = {
   },
 
   async getPatientsForDoctor(doctorId) {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/medical-records/doctor/${doctorId}/patients`,
       { headers: getAuthHeaders() },
     );
@@ -486,7 +513,7 @@ export const medicalRecordService = {
   },
 
   async getPatientsCountByDoctor(doctorId) {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/medical-records/doctor/${doctorId}/patients-count`,
       { headers: getAuthHeaders() },
     );
@@ -508,7 +535,7 @@ export const medicalRecordService = {
   },
 
   async getMedicalRecordById(id) {
-    const response = await fetch(`${API_URL}/medical-records/${id}`, {
+    const response = await apiFetch(`${API_URL}/medical-records/${id}`, {
       headers: getAuthHeaders(),
     });
     const data = await response.json();
@@ -525,7 +552,7 @@ export const medicalRecordService = {
   async deleteMedicalRecord(id) {
     const record = await this.getMedicalRecordById(id).catch(() => null);
 
-    const response = await fetch(`${API_URL}/medical-records/${id}`, {
+    const response = await apiFetch(`${API_URL}/medical-records/${id}`, {
       method: "DELETE",
       headers: getAuthHeaders(),
     });
@@ -551,7 +578,7 @@ export const medicalRecordService = {
 
 export const externalDoctorService = {
   async createRequest(requestData) {
-    const response = await fetch(`${API_URL}/external-doctors/request`, {
+    const response = await apiFetch(`${API_URL}/external-doctors/request`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -572,7 +599,7 @@ export const externalDoctorService = {
 
   async getRequests(status) {
     const query = status ? `?status=${encodeURIComponent(status)}` : "";
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/external-doctors/requests${query}`,
       {
         method: "GET",
@@ -593,7 +620,7 @@ export const externalDoctorService = {
   },
 
   async getRequest(id) {
-    const response = await fetch(`${API_URL}/external-doctors/requests/${id}`, {
+    const response = await apiFetch(`${API_URL}/external-doctors/requests/${id}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${getAuthToken()}`,
@@ -611,7 +638,7 @@ export const externalDoctorService = {
   },
 
   async reviewRequest(id, { approved, rejectionReason }) {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/external-doctors/requests/${id}/review`,
       {
         method: "POST",
@@ -637,7 +664,7 @@ export const externalDoctorService = {
   },
 
   async checkExpiredAccounts() {
-    const response = await fetch(`${API_URL}/external-doctors/check-expired`, {
+    const response = await apiFetch(`${API_URL}/external-doctors/check-expired`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${getAuthToken()}`,
@@ -653,7 +680,7 @@ export const externalDoctorService = {
   },
 
   async deactivateExpiredAccounts() {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/external-doctors/deactivate-expired`,
       {
         method: "POST",
@@ -672,7 +699,7 @@ export const externalDoctorService = {
   },
 
   async getPatientsByEmail(email) {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/external-doctors/patients/${encodeURIComponent(email)}`,
       {
         method: "GET",
@@ -697,7 +724,7 @@ const adminHeaders = () => ({
 
 export const roleService = {
   async getAllRoles() {
-    const response = await fetch(`${API_URL}/roles`, {
+    const response = await apiFetch(`${API_URL}/roles`, {
       headers: adminHeaders(),
     });
 
@@ -708,38 +735,8 @@ export const roleService = {
     return response.json();
   },
 
-  async createRole(roleData) {
-    const response = await fetch(`${API_URL}/roles`, {
-      method: "POST",
-      headers: adminHeaders(),
-      body: JSON.stringify(roleData),
-    });
-
-    if (!response.ok) {
-      throw await readError(response, `Error: ${response.status}`);
-    }
-
-    return response.json();
-  },
-
-  async deleteRole(roleId) {
-    const response = await fetch(`${API_URL}/roles/${roleId}`, {
-      method: "DELETE",
-      headers: adminHeaders(),
-    });
-
-    if (!response.ok) {
-      throw await readError(
-        response,
-        `Failed to delete role (${response.status})`,
-      );
-    }
-
-    return true;
-  },
-
   async assignRole(userId, roleId) {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/roles/${userId}/assign/${roleId}`,
       {
         method: "POST",
@@ -755,7 +752,7 @@ export const roleService = {
   },
 
   async removeRole(userId, roleId) {
-    const response = await fetch(
+    const response = await apiFetch(
       `${API_URL}/roles/${userId}/remove/${roleId}`,
       {
         method: "DELETE",
@@ -773,7 +770,7 @@ export const roleService = {
 
 export const userService = {
   async getUsers() {
-    const response = await fetch(`${API_URL}/users`, {
+    const response = await apiFetch(`${API_URL}/users`, {
       headers: adminHeaders(),
     });
 
@@ -785,7 +782,7 @@ export const userService = {
   },
 
   async getUser(id) {
-    const response = await fetch(`${API_URL}/users/${id}`, {
+    const response = await apiFetch(`${API_URL}/users/${id}`, {
       headers: adminHeaders(),
     });
 
@@ -797,7 +794,7 @@ export const userService = {
   },
 
   async createUser(userData) {
-    const response = await fetch(`${API_URL}/users`, {
+    const response = await apiFetch(`${API_URL}/users`, {
       method: "POST",
       headers: adminHeaders(),
       body: JSON.stringify(userData),
@@ -811,7 +808,7 @@ export const userService = {
   },
 
   async updateUser(id, userData) {
-    const response = await fetch(`${API_URL}/users/${id}`, {
+    const response = await apiFetch(`${API_URL}/users/${id}`, {
       method: "PATCH",
       headers: adminHeaders(),
       body: JSON.stringify(userData),
@@ -825,7 +822,7 @@ export const userService = {
   },
 
   async deleteUser(id) {
-    const response = await fetch(`${API_URL}/users/${id}`, {
+    const response = await apiFetch(`${API_URL}/users/${id}`, {
       method: "DELETE",
       headers: adminHeaders(),
     });
@@ -838,7 +835,7 @@ export const userService = {
   },
 
   async getAssignableRoles() {
-    const response = await fetch(`${API_URL}/users/assignable-roles`, {
+    const response = await apiFetch(`${API_URL}/users/assignable-roles`, {
       headers: adminHeaders(),
     });
 
@@ -852,7 +849,7 @@ export const userService = {
 
 export const adminService = {
   async getUsers() {
-    const response = await fetch(`${API_URL}/admin/users`, {
+    const response = await apiFetch(`${API_URL}/admin/users`, {
       headers: adminHeaders(),
     });
 
@@ -864,7 +861,7 @@ export const adminService = {
   },
 
   async createUser(userData) {
-    const response = await fetch(`${API_URL}/admin/new_med`, {
+    const response = await apiFetch(`${API_URL}/admin/new_med`, {
       method: "POST",
       headers: adminHeaders(),
       body: JSON.stringify(userData),
@@ -878,7 +875,7 @@ export const adminService = {
   },
 
   async updateUser(id, userData) {
-    const response = await fetch(`${API_URL}/admin/users/${id}`, {
+    const response = await apiFetch(`${API_URL}/admin/users/${id}`, {
       method: "PUT",
       headers: adminHeaders(),
       body: JSON.stringify(userData),
@@ -895,7 +892,7 @@ export const adminService = {
   },
 
   async deleteUser(id) {
-    const response = await fetch(`${API_URL}/admin/users/${id}`, {
+    const response = await apiFetch(`${API_URL}/admin/users/${id}`, {
       method: "DELETE",
       headers: adminHeaders(),
     });
@@ -908,7 +905,7 @@ export const adminService = {
   },
 
   async getServices() {
-    const response = await fetch(`${API_URL}/services`, {
+    const response = await apiFetch(`${API_URL}/services`, {
       headers: adminHeaders(),
     });
 

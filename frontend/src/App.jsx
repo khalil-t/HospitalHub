@@ -1,10 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import PublicOnlyRoute from "@/components/PublicOnlyRoute";
+import { USER_ROLE } from "@/lib/roles";
+
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Verify2FA from "@/pages/Verify2FA";
@@ -37,44 +41,168 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <Routes>
-              <Route path="/" element={<Placeholder title="MediSecure" />} />
-
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/verify-2fa" element={<Verify2FA />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-
-              <Route path="/admin-dashboard" element={<AdminDashboard />} />
-              <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
+              {/* Root */}
               <Route
-                path="/ServiceChef-dashboard"
-                element={<Placeholder title="Service Chef Dashboard" />}
-              />
-              <Route
-                path="/AdmissionsOfficer-dashboard"
-                element={<AdmissionsOfficerDashboard />}
-              />
-              <Route path="/DPO-dashboard" element={<DPODashboard />} />
-              <Route
-                path="/Radiologist-dashboard"
-                element={<RadiologistDashboard />}
-              />
-              <Route
-                path="/LaboratoryTechnician-dashboard"
-                element={<LaboratoryTechnicianDashboard />}
+                path="/"
+                element={
+                  <PublicOnlyRoute>
+                    <Navigate to="/login" replace />
+                  </PublicOnlyRoute>
+                }
               />
 
-              <Route path="/external" element={<External />} />
+              {/* Public Guest-Only Routes */}
+              <Route
+                path="/login"
+                element={
+                  <PublicOnlyRoute>
+                    <Login />
+                  </PublicOnlyRoute>
+                }
+              />
+              <Route
+                path="/register"
+                element={
+                  <PublicOnlyRoute>
+                    <Register />
+                  </PublicOnlyRoute>
+                }
+              />
+              <Route
+                path="/verify-2fa"
+                element={
+                  <PublicOnlyRoute>
+                    <Verify2FA />
+                  </PublicOnlyRoute>
+                }
+              />
+              <Route
+                path="/forgot-password"
+                element={
+                  <PublicOnlyRoute>
+                    <ForgotPassword />
+                  </PublicOnlyRoute>
+                }
+              />
+              <Route
+                path="/reset-password"
+                element={
+                  <PublicOnlyRoute>
+                    <ResetPassword />
+                  </PublicOnlyRoute>
+                }
+              />
+
+              {/* Public Form Route */}
               <Route
                 path="/external-doctor-request"
                 element={<ExternalDoctorRequest />}
               />
+
+              {/* Protected Clinical and Administrative Routes */}
               <Route
-                path="/external-doctor-management"
-                element={<ExternalDoctorManagement />}
+                path="/admin-dashboard"
+                element={
+                  <ProtectedRoute
+                    allowedRoles={[
+                      USER_ROLE.SUPER_ADMIN,
+                      USER_ROLE.SERVICE_HEAD,
+                    ]}
+                  >
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/doctor-dashboard"
+                element={
+                  <ProtectedRoute
+                    allowedRoles={[
+                      USER_ROLE.INTERNAL_DOCTOR,
+                      USER_ROLE.SUPER_ADMIN,
+                    ]}
+                  >
+                    <DoctorDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/AdmissionsOfficer-dashboard"
+                element={
+                  <ProtectedRoute
+                    allowedRoles={[
+                      USER_ROLE.ADMISSION_AGENT,
+                      USER_ROLE.SUPER_ADMIN,
+                    ]}
+                  >
+                    <AdmissionsOfficerDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/DPO-dashboard"
+                element={
+                  <ProtectedRoute
+                    allowedRoles={[
+                      USER_ROLE.VERIFICATION_CLERK,
+                      USER_ROLE.SUPER_ADMIN,
+                    ]}
+                  >
+                    <DPODashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/Radiologist-dashboard"
+                element={
+                  <ProtectedRoute
+                    allowedRoles={[
+                      USER_ROLE.RADIOLOGIST,
+                      USER_ROLE.SUPER_ADMIN,
+                    ]}
+                  >
+                    <RadiologistDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/LaboratoryTechnician-dashboard"
+                element={
+                  <ProtectedRoute
+                    allowedRoles={[
+                      USER_ROLE.LABORATORY_TECHNICIAN,
+                      USER_ROLE.SUPER_ADMIN,
+                    ]}
+                  >
+                    <LaboratoryTechnicianDashboard />
+                  </ProtectedRoute>
+                }
               />
 
+              {/* Protected External Doctor Routes */}
+              <Route
+                path="/external"
+                element={
+                  <ProtectedRoute requireExternalDoctor={true}>
+                    <External />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/external-doctor-management"
+                element={
+                  <ProtectedRoute
+                    allowedRoles={[
+                      USER_ROLE.SUPER_ADMIN,
+                      USER_ROLE.ADMISSION_AGENT,
+                    ]}
+                  >
+                    <ExternalDoctorManagement />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Catch-All */}
               <Route path="*" element={<Placeholder title="Not Found" />} />
             </Routes>
           </AuthProvider>

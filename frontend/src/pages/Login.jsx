@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion as Motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,12 +14,14 @@ import {
 import { toast } from 'sonner';
 import Lottie from 'lottie-react';
 import medical2 from '@/animations/medical2.json';
-import { authService } from '@/services/authService';
+import { useAuth } from '@/contexts/useAuth';
 import { auditService } from '@/services/auditService';
-import { USER_ROLE } from '@/lib/roles';
+import { getDefaultDashboard } from '@/lib/navigation';
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -40,33 +42,18 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const response = await authService.login(email, password);
-      const user = response.user;
-
-      toast.success('Login successful!');
-
-      const userRoles = user.roles || [];
-
-      if (user.isExternalDoctor) {
-        navigate('/external', { replace: true });
+      const response = await login(email, password);
+      if (!response.success) {
         return;
       }
 
-      if (userRoles.includes(USER_ROLE.SUPER_ADMIN)) {
-        navigate('/admin-dashboard', { replace: true });
-      } else if (userRoles.includes(USER_ROLE.INTERNAL_DOCTOR)) {
-        navigate('/doctor-dashboard', { replace: true });
-      } else if (userRoles.includes(USER_ROLE.SERVICE_HEAD)) {
-        navigate('/ServiceChef-dashboard', { replace: true });
-      } else if (userRoles.includes(USER_ROLE.ADMISSION_AGENT)) {
-        navigate('/AdmissionsOfficer-dashboard', { replace: true });
-      } else if (userRoles.includes(USER_ROLE.VERIFICATION_CLERK)) {
-        navigate('/DPO-dashboard', { replace: true });
-      } else if (userRoles.includes(USER_ROLE.RADIOLOGIST)) {
-        navigate('/Radiologist-dashboard', { replace: true });
-      } else if (userRoles.includes(USER_ROLE.LABORATORY_TECHNICIAN)) {
-        navigate('/LaboratoryTechnician-dashboard', { replace: true });
+      const from = location.state?.from?.pathname;
+      if (from && from !== '/login') {
+        navigate(from, { replace: true });
+        return;
       }
+
+      navigate(getDefaultDashboard(response.user), { replace: true });
     } catch (error) {
       const message =
         error.status === 429

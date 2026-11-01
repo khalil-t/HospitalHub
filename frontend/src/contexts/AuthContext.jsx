@@ -1,81 +1,75 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { AuthContext } from './useAuth';
-
-const BASE_URL = import.meta.env.VITE_API_URL;
+import { authService } from '@/services/authService';
 
 export const AuthProvider = ({ children }) => {
-  const savedUser = localStorage.getItem('user');
-  const savedToken = localStorage.getItem('access_token');
-  const initialUser =
-    savedUser && savedToken
-      ? { ...JSON.parse(savedUser), token: savedToken }
-      : null;
+  const [user, setUser] = useState(null);
+  const [service, setService] = useState(null);
+  const [authStatus, setAuthStatus] = useState('loading'); // 'loading' | 'authenticated' | 'unauthenticated'
 
-  const [user, setUser] = useState(initialUser);
-  const [service, setService] = useState(initialUser?.service || null);
-  const [isAuthenticated, setIsAuthenticated] = useState(!!initialUser);
-  const [isLoading, setIsLoading] = useState(!initialUser);
-
-  useEffect(() => {
-    if (!initialUser) {
-      const storedUser = localStorage.getItem('user');
-      const storedToken = localStorage.getItem('access_token');
-      if (storedUser && storedToken) {
-        try {
-          const parsedUser = JSON.parse(storedUser);
-          const userWithToken = { ...parsedUser, token: storedToken };
-          setUser(userWithToken);
-          setService(parsedUser.service || null);
-          setIsAuthenticated(true);
-        } catch {
-          logout();
-        }
-      }
+  const syncFromStorage = useCallback(() => {
+    const currentUser = authService.getCurrentUser();
+    const token = authService.getToken();
+    if (currentUser && token) {
+      setUser({ ...currentUser, token });
+      setService(currentUser.service || null);
+      setAuthStatus('authenticated');
+    } else {
+      setUser(null);
+      setService(null);
+      setAuthStatus('unauthenticated');
     }
-    setIsLoading(false);
   }, []);
 
-  const login = async (email, password) => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+  useEffect(() => {
+    let isMounted = true;
 
-      if (!response.ok) {
-        const errData = await response.json();
-        const message =
-          response.status === 429
-            ? 'Too many login attempts. Please try again later.'
-            : errData.message || 'Login failed due to invalid credentials';
-        const error = new Error(message);
-        error.status = response.status;
-        throw error;
+    const initAuth = async () => {
+      try {
+        const session = await authService.validateSession();
+        if (!isMounted) return;
+
+        if (session?.user) {
+          setUser(session.user);
+          setService(session.user.service || null);
+          setAuthStatus('authenticated');
+        } else {
+          setUser(null);
+          setService(null);
+          setAuthStatus('unauthenticated');
+        }
+      } catch {
+        if (!isMounted) return;
+        setUser(null);
+        setService(null);
+        setAuthStatus('unauthenticated');
       }
+    };
 
-      const {
-        access_token,
-        refresh_token,
-        user: backendUser,
-      } = await response.json();
+    initAuth();
 
-      const userData = {
-        ...backendUser,
-        token: access_token,
-        refreshToken: refresh_token,
-      };
+    const handleAuthChange = () => {
+      if (!isMounted) return;
+      syncFromStorage();
+    };
 
-      const { token, refreshToken, ...userToSave } = userData;
-      localStorage.setItem('user', JSON.stringify(userToSave));
-      localStorage.setItem('access_token', token);
-      localStorage.setItem('refresh_token', refreshToken);
+    window.addEventListener('auth:change', handleAuthChange);
 
+    return () => {
+      isMounted = false;
+      window.removeEventListener('auth:change', handleAuthChange);
+    };
+  }, [syncFromStorage]);
+
+  const login = async (email, password) => {
+    setAuthStatus('loading');
+    try {
+      const data = await authService.login(email, password);
+      const userData = { ...data.user, token: data.access_token };
       setUser(userData);
-      setService(userData.service || null);
-      setIsAuthenticated(true);
+      setService(data.user.service || null);
+      setAuthStatus('authenticated');
 
       toast.success('Login successful', {
         description: `Welcome back, ${userData.fullName || 'User'}!`,
@@ -83,72 +77,39 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, user: userData };
     } catch (error) {
+      setAuthStatus('unauthenticated');
       toast.error('Login failed', {
         description: error.message || 'Invalid email or password',
       });
       return { success: false, error: error.message };
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-
-    setUser(null);
-    setService(null);
-    setIsAuthenticated(false);
-
-    toast.info('Logged out', {
-      description: 'You have been successfully logged out',
-    });
+  const logout = async () => {
+    try {
+      await authService.logout();
+    } finally {
+      setUser(null);
+      setService(null);
+      setAuthStatus('unauthenticated');
+      toast.info('Logged out', {
+        description: 'You have been successfully logged out',
+      });
+    }
   };
-
-  const getToken = () => user?.token || localStorage.getItem('access_token');
 
   const refreshToken = async () => {
-    const currentRefreshToken = localStorage.getItem('refresh_token');
-    const storedUser = localStorage.getItem('user');
-    const userId = user?.id || (storedUser ? JSON.parse(storedUser)?.id : null);
-
-    if (!currentRefreshToken || !userId) {
-      logout();
-      throw new Error('No refresh token or user ID available.');
-    }
-
     try {
-      const response = await fetch(`${BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, refreshToken: currentRefreshToken }),
-      });
-
-      if (!response.ok) {
-        logout();
-        throw new Error('Session expired. Please log in again.');
-      }
-
-      const data = await response.json();
-      const newAccessToken = data.access_token;
-      const newRefreshToken = data.refresh_token;
-      const refreshedUser = data.user;
-
-      localStorage.setItem('access_token', newAccessToken);
-      localStorage.setItem('refresh_token', newRefreshToken);
-      localStorage.setItem('user', JSON.stringify(refreshedUser));
-
-      const updatedUserData = {
-        ...refreshedUser,
-        token: newAccessToken,
-        refreshToken: newRefreshToken,
-      };
-      setUser(updatedUserData);
-
-      return newAccessToken;
+      const data = await authService.refreshToken();
+      const userData = { ...data.user, token: data.access_token };
+      setUser(userData);
+      setService(data.user?.service || null);
+      setAuthStatus('authenticated');
+      return data.access_token;
     } catch (error) {
-      logout();
+      setUser(null);
+      setService(null);
+      setAuthStatus('unauthenticated');
       toast.error('Session Expired', {
         description: 'Your session has expired. Please log in again.',
       });
@@ -159,11 +120,12 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     service,
-    isLoading,
-    isAuthenticated,
+    authStatus,
+    isLoading: authStatus === 'loading',
+    isAuthenticated: authStatus === 'authenticated',
     login,
     logout,
-    getToken,
+    getToken: () => authService.getToken(),
     refreshToken,
   };
 

@@ -11,7 +11,6 @@ import { In, Repository } from 'typeorm';
 import { Role } from './entities/role.entity';
 import { User } from '../users/entities/user.entity';
 import { Permission } from './entities/permissions.entity';
-import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { EncryptionService } from '../common/encryption.service';
@@ -184,46 +183,6 @@ export class RolesService implements OnModuleInit {
         'The last super admin cannot be removed or demoted',
       );
     }
-  }
-
-  async createRole(createRoleDto: CreateRoleDto): Promise<RoleResponseDto> {
-    const { name, description, permissionIds } = createRoleDto;
-    const existingRole = await this.roleRepository.findOne({ where: { name } });
-    if (existingRole) {
-      throw new ConflictException(`Role '${name}' already exists`);
-    }
-
-    const role = this.roleRepository.create({ name, description });
-
-    if (permissionIds?.length) {
-      const permissions = await this.permissionRepository.findBy({
-        id: In(permissionIds),
-      });
-      role.permissions = permissions;
-    }
-
-    return toRoleResponse(await this.roleRepository.save(role));
-  }
-
-  async remove(id: string): Promise<void> {
-    const role = await this.roleRepository.findOne({ where: { id } });
-    if (!role) {
-      throw new NotFoundException(`Role with ID ${id} not found`);
-    }
-
-    const usersWithRole = await this.userRepository
-      .createQueryBuilder('user')
-      .leftJoin('user.roles', 'role')
-      .where('role.id = :roleId', { roleId: id })
-      .getCount();
-
-    if (usersWithRole > 0) {
-      throw new ConflictException(
-        `Cannot delete role "${role.name}". ${usersWithRole} users are still assigned to this role. Please remove the role from all users first.`,
-      );
-    }
-
-    await this.roleRepository.delete(id);
   }
 
   async findAllRoles(): Promise<RoleResponseDto[]> {

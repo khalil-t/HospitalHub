@@ -6,13 +6,10 @@ import {
   Patch,
   Param,
   Delete,
-  HttpCode,
-  HttpStatus,
   Ip,
   Req,
 } from '@nestjs/common';
 import { RolesService } from './roles.service';
-import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { AssignPermissionsDto } from './dto/assign-permissions.dto';
@@ -42,11 +39,6 @@ export class RolesController {
     private readonly auditService: AuditService,
   ) {}
 
-  @Post()
-  createRole(@Body() createRoleDto: CreateRoleDto) {
-    return this.rolesService.createRole(createRoleDto);
-  }
-
   @Get()
   findAllRoles() {
     return this.rolesService.findAllRoles();
@@ -55,12 +47,6 @@ export class RolesController {
   @Get(':id')
   findRole(@Param('id') id: string) {
     return this.rolesService.findRoleById(id);
-  }
-
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id') id: string) {
-    await this.rolesService.remove(id);
   }
 
   @Patch(':id')

@@ -10,12 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import ServicesManagement from './ServicesManagement';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -31,7 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
   Users,
@@ -49,18 +43,13 @@ import {
   XCircle,
   Save,
   X,
-  Plus,
   Stethoscope,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useNavigate } from 'react-router-dom';
 import ExternalDoctorManagement from './ExternalDoctorManagement';
-import {
-  adminService,
-  roleService,
-  userService,
-} from '@/services/service';
+import { adminService, roleService, userService } from '@/services/service';
 import { useAuth } from '@/contexts/useAuth';
 import {
   USER_ROLE,
@@ -75,11 +64,9 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('users');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
-  const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRole, setSelectedRole] = useState('');
-  const [newRoleForm, setNewRoleForm] = useState({ name: '', description: '' });
   const [userForm, setUserForm] = useState({
     fullName: '',
     username: '',
@@ -93,7 +80,7 @@ const AdminDashboard = () => {
   const [assignableRoles, setAssignableRoles] = useState([]);
   const [services, setServices] = useState([]);
   const navigate = useNavigate();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, logout } = useAuth();
 
   const currentRoles = currentUser?.roles || [];
   const currentUserId = currentUser?.id;
@@ -171,55 +158,6 @@ const AdminDashboard = () => {
     loadUsers,
   ]);
 
-  const handleCreateRole = async (event) => {
-    event.preventDefault();
-
-    if (!newRoleForm.name.trim()) {
-      toast.error('Role name is required');
-      return;
-    }
-
-    try {
-      await roleService.createRole({
-        name: newRoleForm.name.trim(),
-        description:
-          newRoleForm.description.trim() || `${newRoleForm.name} role`,
-      });
-
-      toast.success('Role created successfully!');
-      await loadRoles();
-      setNewRoleForm({ name: '', description: '' });
-      setIsCreateRoleModalOpen(false);
-    } catch (error) {
-      toast.error(error.message || 'Something went wrong');
-    }
-  };
-
-  const deleteRole = async (roleId) => {
-    const confirmDelete = window.confirm(
-      'Are you sure you want to delete this role?\n\n' +
-        'This action cannot be undone and will remove the role from all users.',
-    );
-
-    if (!confirmDelete) {
-      return;
-    }
-
-    try {
-      await roleService.deleteRole(roleId);
-      setRoles(roles.filter((role) => role.id !== roleId));
-      toast.success('Role deleted successfully');
-    } catch (error) {
-      if (error.status === 404) {
-        toast.error('Role not found or already deleted');
-      } else if (error.status === 409) {
-        toast.error(error.message || "Cannot delete role - it's still assigned to users");
-      } else {
-        toast.error(error.message || 'Something went wrong');
-      }
-    }
-  };
-
   const handleUserSubmit = async (event) => {
     event.preventDefault();
 
@@ -281,9 +219,7 @@ const AdminDashboard = () => {
         email: '',
         password: '',
         phoneNumber: '',
-        serviceId: currentIsServiceHead
-          ? currentUser?.service?.id || ''
-          : '',
+        serviceId: currentIsServiceHead ? currentUser?.service?.id || '' : '',
       });
     }
 
@@ -352,9 +288,7 @@ const AdminDashboard = () => {
   };
 
   const targetHasSuperAdmin = (target) =>
-    (target.roles || []).some(
-      (role) => role.name === USER_ROLE.SUPER_ADMIN,
-    );
+    (target.roles || []).some((role) => role.name === USER_ROLE.SUPER_ADMIN);
 
   const canManageTargetUser = (target) =>
     Boolean(target?.id) &&
@@ -433,14 +367,15 @@ const AdminDashboard = () => {
             <div className="text-right">
               <p className="font-semibold text-foreground">Admin User</p>
               <p className="text-sm text-muted-foreground">
-                {currentIsSuperAdmin
-                ? 'System Administrator'
-                : 'Service Head'}
+                {currentIsSuperAdmin ? 'System Administrator' : 'Service Head'}
               </p>
             </div>
             <ThemeToggle />
             <Button
-              onClick={() => navigate('/login')}
+              onClick={async () => {
+                await logout();
+                navigate('/login');
+              }}
               variant="outline"
               className="border-border/50 bg-card/50 backdrop-blur-sm hover:bg-secondary/50 transition-all duration-200"
             >
@@ -488,9 +423,7 @@ const AdminDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-blue-500 mb-1">
-                {currentIsSuperAdmin
-                  ? roles.length
-                  : assignableRoles.length}
+                {currentIsSuperAdmin ? roles.length : assignableRoles.length}
               </div>
               <p className="text-xs text-muted-foreground">
                 {currentIsSuperAdmin ? 'System roles' : 'Roles you can assign'}
@@ -509,9 +442,7 @@ const AdminDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-green-500 mb-1">
-                {currentIsSuperAdmin
-                  ? services.length
-                  : visibleServices.length}
+                {currentIsSuperAdmin ? services.length : visibleServices.length}
               </div>
               <p className="text-xs text-muted-foreground">
                 {currentIsSuperAdmin ? 'Hospital services' : 'Your service'}
@@ -549,20 +480,24 @@ const AdminDashboard = () => {
               <Users className="mr-2 h-4 w-4" />
               Users
             </TabsTrigger>
-            <TabsTrigger
-              value="roles"
-              className="data-[state=active]:bg-blue-500 data-[state=active]:text-white rounded-lg transition-all duration-200"
-            >
-              <Shield className="mr-2 h-4 w-4" />
-              Roles
-            </TabsTrigger>
-            <TabsTrigger
-              value="services"
-              className="data-[state=active]:bg-green-500 data-[state=active]:text-white rounded-lg transition-all duration-200"
-            >
-              <Stethoscope className="mr-2 h-4 w-4" />
-              Services
-            </TabsTrigger>
+            {currentIsSuperAdmin && (
+              <TabsTrigger
+                value="roles"
+                className="data-[state=active]:bg-blue-500 data-[state=active]:text-white rounded-lg transition-all duration-200"
+              >
+                <Shield className="mr-2 h-4 w-4" />
+                Roles
+              </TabsTrigger>
+            )}
+            {currentIsSuperAdmin && (
+              <TabsTrigger
+                value="services"
+                className="data-[state=active]:bg-green-500 data-[state=active]:text-white rounded-lg transition-all duration-200"
+              >
+                <Stethoscope className="mr-2 h-4 w-4" />
+                Services
+              </TabsTrigger>
+            )}
             {currentIsSuperAdmin && (
               <TabsTrigger
                 value="requests"
@@ -691,162 +626,147 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="roles" className="space-y-6">
-            <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-2xl font-bold text-foreground">
-                      {currentIsSuperAdmin
-                        ? 'Roles Management'
-                        : 'Role Assignments'}
-                    </CardTitle>
-                    <CardDescription className="text-muted-foreground">
-                      {currentIsSuperAdmin
-                        ? 'Create and manage system roles'
-                        : 'Assign roles to users in your service'}
-                    </CardDescription>
-                  </div>
-                  {currentIsSuperAdmin && (
-                    <Button
-                      className="bg-blue-500 text-white"
-                      onClick={() => setIsCreateRoleModalOpen(true)}
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Create Role
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-
-              <CardContent>
-                {currentIsSuperAdmin && (
-                  <div className="space-y-4 mb-8">
-                    <h3 className="text-lg font-semibold text-foreground mb-4">
-                      System Roles
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {roles.map((role) => (
-                        <Card
-                          key={role.id}
-                          className="border-border/50 bg-background/50"
-                        >
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                              <CardTitle className="text-base font-semibold">
-                                {role.name}
-                              </CardTitle>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => deleteRole(role.id)}
-                                className="text-red-500 hover:bg-red-100 h-8 w-8"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <p className="text-sm text-muted-foreground">
-                              {role.description ||
-                                `${role.name} role permissions`}
-                            </p>
-                            <div className="mt-3">
-                              <Badge variant="outline" className="text-xs">
-                                {
-                                  users.filter((user) =>
-                                    user.roles?.some(
-                                      (r) => r.id === role.id,
-                                    ),
-                                  ).length
-                                }{' '}
-                                users
-                              </Badge>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+          {currentIsSuperAdmin && (
+            <TabsContent value="roles" className="space-y-6">
+              <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-2xl font-bold text-foreground">
+                        {currentIsSuperAdmin
+                          ? 'Roles Management'
+                          : 'Role Assignments'}
+                      </CardTitle>
+                      <CardDescription className="text-muted-foreground">
+                        {currentIsSuperAdmin
+                          ? 'Manage system roles'
+                          : 'Assign roles to users in your service'}
+                      </CardDescription>
                     </div>
                   </div>
-                )}
+                </CardHeader>
 
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-foreground mb-4">
-                    User Role Assignments
-                  </h3>
-                  {users.map((user) => (
-                    <div
-                      key={user.id}
-                      className="p-4 rounded-lg border border-border/50 bg-background/50 hover:bg-secondary/30 transition-all duration-200"
-                    >
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h3 className="font-semibold text-foreground">
-                            {user.fullName}
-                          </h3>
-                          <p className="text-sm text-muted-foreground">
-                            {user.email ||
-                              user.service?.name ||
-                              'No service assigned'}
-                          </p>
-                        </div>
-                        {canModifyTargetRoles(user) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openRoleModal(user)}
-                            className="text-primary hover:bg-primary/10"
+                <CardContent>
+                  {currentIsSuperAdmin && (
+                    <div className="space-y-4 mb-8">
+                      <h3 className="text-lg font-semibold text-foreground mb-4">
+                        System Roles
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {roles.map((role) => (
+                          <Card
+                            key={role.id}
+                            className="border-border/50 bg-background/50"
                           >
-                            + Add Role
-                          </Button>
+                            <CardHeader className="pb-3">
+                              <div className="flex items-center justify-between">
+                                <CardTitle className="text-base font-semibold">
+                                  {role.name}
+                                </CardTitle>
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              <p className="text-sm text-muted-foreground">
+                                {role.description ||
+                                  `${role.name} role permissions`}
+                              </p>
+                              <div className="mt-3">
+                                <Badge variant="outline" className="text-xs">
+                                  {
+                                    users.filter((user) =>
+                                      user.roles?.some((r) => r.id === role.id),
+                                    ).length
+                                  }{' '}
+                                  users
+                                </Badge>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-foreground mb-4">
+                      User Role Assignments
+                    </h3>
+                    {users.map((user) => (
+                      <div
+                        key={user.id}
+                        className="p-4 rounded-lg border border-border/50 bg-background/50 hover:bg-secondary/30 transition-all duration-200"
+                      >
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h3 className="font-semibold text-foreground">
+                              {user.fullName}
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              {user.email ||
+                                user.service?.name ||
+                                'No service assigned'}
+                            </p>
+                          </div>
+                          {canModifyTargetRoles(user) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openRoleModal(user)}
+                              className="text-primary hover:bg-primary/10"
+                            >
+                              + Add Role
+                            </Button>
+                          )}
+                        </div>
+
+                        {user.roles && user.roles.length > 0 ? (
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground uppercase">
+                              Assigned Roles
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {user.roles.map((role) => (
+                                <div
+                                  key={role.id}
+                                  className="flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full border border-primary/20"
+                                >
+                                  <span className="text-sm font-medium">
+                                    {role.name}
+                                  </span>
+                                  {canModifyTargetRoles(user) &&
+                                    canAssignRole(currentRoles, role.name) && (
+                                      <button
+                                        onClick={() =>
+                                          removeRoleFromUser(user.id, role.id)
+                                        }
+                                        className="ml-1 hover:text-red-500 transition-colors"
+                                        title="Remove role"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                    )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground italic">
+                            No roles assigned
+                          </div>
                         )}
                       </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
 
-                      {user.roles && user.roles.length > 0 ? (
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-muted-foreground uppercase">
-                            Assigned Roles
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {user.roles.map((role) => (
-                              <div
-                                key={role.id}
-                                className="flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full border border-primary/20"
-                              >
-                                <span className="text-sm font-medium">
-                                  {role.name}
-                                </span>
-                                {canModifyTargetRoles(user) &&
-                                  canAssignRole(currentRoles, role.name) && (
-                                    <button
-                                      onClick={() =>
-                                        removeRoleFromUser(user.id, role.id)
-                                      }
-                                      className="ml-1 hover:text-red-500 transition-colors"
-                                      title="Remove role"
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </button>
-                                  )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-muted-foreground italic">
-                          No roles assigned
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="services" className="space-y-6">
-            <ServicesManagement />
-          </TabsContent>
+          {currentIsSuperAdmin && (
+            <TabsContent value="services" className="space-y-6">
+              <ServicesManagement />
+            </TabsContent>
+          )}
 
           {currentIsSuperAdmin && (
             <TabsContent value="requests" className="space-y-6">
@@ -1006,82 +926,13 @@ const AdminDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isCreateRoleModalOpen} onOpenChange={setIsCreateRoleModalOpen}>
-        <DialogContent className="bg-background border-border/50">
-          <DialogHeader>
-            <DialogTitle>Create New Role</DialogTitle>
-            <DialogDescription>
-              Create a new system role with specific permissions
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleCreateRole} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="roleName">Role Name *</Label>
-              <Input
-                id="roleName"
-                value={newRoleForm.name}
-                onChange={(e) =>
-                  setNewRoleForm({ ...newRoleForm, name: e.target.value })
-                }
-                placeholder="e.g., radiologist"
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                Use a policy role name such as super_admin, service_head,
-                internal_doctor, radiologist, or laboratory_technician.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="roleDescription">Description</Label>
-              <Textarea
-                id="roleDescription"
-                value={newRoleForm.description}
-                onChange={(e) =>
-                  setNewRoleForm({
-                    ...newRoleForm,
-                    description: e.target.value,
-                  })
-                }
-                placeholder="Describe the role and its responsibilities"
-                rows={3}
-              />
-            </div>
-
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-              <p className="text-sm text-blue-800 dark:text-blue-200">
-                <strong>Tip:</strong> Role names are fixed by policy. Create
-                only missing policy roles, such as radiologist or
-                laboratory_technician.
-              </p>
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsCreateRoleModalOpen(false);
-                  setNewRoleForm({ name: '', description: '' });
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" className="bg-blue-500 text-white">
-                <Save className="mr-2 h-4 w-4" />
-                Create Role
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={isRoleModalOpen} onOpenChange={setIsRoleModalOpen}>
         <DialogContent className="bg-background border-border/50 max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {selectedUser ? `Assign Role to ${selectedUser.fullName}` : 'Assign Role'}
+              {selectedUser
+                ? `Assign Role to ${selectedUser.fullName}`
+                : 'Assign Role'}
             </DialogTitle>
             <DialogDescription>
               Select a role you are allowed to delegate to this user.
