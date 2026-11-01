@@ -1,11 +1,10 @@
+import { authStorage } from '@/lib/authStorage';
+
 const API_URL = import.meta.env.VITE_API_URL;
 
-const getAuthToken = () => localStorage.getItem("access_token");
+const getAuthToken = () => authStorage.getAccessToken();
 
-const getCurrentUser = () => {
-  const userStr = localStorage.getItem("user");
-  return userStr ? JSON.parse(userStr) : null;
-};
+const getCurrentUser = () => authStorage.getUser();
 
 const authHeaders = () => {
   const token = getAuthToken();

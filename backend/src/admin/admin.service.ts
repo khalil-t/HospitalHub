@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MailerService } from '@nestjs-modules/mailer';
+import { EmailService } from '../users/email.service';
 import { UsersService } from '../users/users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from '../users/dto/update-user.dto';
@@ -13,7 +13,7 @@ import {
 export class AdminService {
   constructor(
     private readonly usersService: UsersService,
-    private readonly mailerService: MailerService,
+    private readonly emailService: EmailService,
   ) {}
 
   async addUser(
@@ -22,14 +22,14 @@ export class AdminService {
   ): Promise<UserResponseDto | UserSummaryDto> {
     const createdUser = await this.usersService.create(form, actor);
 
-    await this.mailerService.sendMail({
-      to: createdUser.email,
-      subject: 'Your account is ready!',
-      text: `Hello ${createdUser.fullName}, your password is: ${form.password}`,
-      html: `<p>Hello <b>${createdUser.fullName}</b></p>
-             <p>Your password is: <b>${form.password}</b></p>
-             <p>Please log in to access the platform.</p>`,
-    });
+    await this.emailService
+      .sendWelcomeEmail(
+        createdUser.email,
+        createdUser.fullName,
+        createdUser.email,
+        form.password,
+      )
+      .catch(() => undefined);
 
     return createdUser;
   }

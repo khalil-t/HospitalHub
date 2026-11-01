@@ -1,8 +1,9 @@
 import { auditService } from "./auditService.js";
 import { authService } from "./authService.js";
+import { authStorage } from "@/lib/authStorage";
 
 const API_URL = import.meta.env.VITE_API_URL;
-const getAuthToken = () => localStorage.getItem("access_token");
+const getAuthToken = () => authStorage.getAccessToken();
 
 const getAuthHeaders = () => {
   const token = getAuthToken();
@@ -29,8 +30,18 @@ const apiFetch = async (url, options = {}) => {
         response = await fetch(url, { ...options, headers: retryHeaders });
       }
     } catch {
-      // Refresh failed; authService already cleared session and notified listeners
+      await authService.logout();
     }
+  }
+
+  if (
+    response.status === 401 &&
+    authService.isAuthenticated() &&
+    typeof url === "string" &&
+    !url.includes("/auth/login") &&
+    !url.includes("/auth/refresh")
+  ) {
+    await authService.logout();
   }
 
   return response;

@@ -23,11 +23,12 @@ import { Stethoscope, Trash2, Edit, Save, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/useAuth';
 import { isSuperAdmin } from '@/lib/roles';
+import { authStorage } from '@/lib/authStorage';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('access_token');
+  const token = authStorage.getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 

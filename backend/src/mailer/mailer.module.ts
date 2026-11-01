@@ -7,25 +7,29 @@ import { MailerModule } from '@nestjs-modules/mailer';
     MailerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
+        const host = configService.get<string>('MAIL_HOST');
+        const port = configService.get<string>('MAIL_PORT');
         const user = configService.get<string>('MAIL_USER');
         const pass = configService.get<string>('MAIL_PASS');
+        const from = configService.get<string>('MAIL_FROM');
 
-        if (!user || !pass) {
-          throw new Error('MAIL_USER and MAIL_PASS are not set.');
+        if (!host || !port || !user || !pass || !from) {
+          throw new Error(
+            'MAIL_HOST, MAIL_PORT, MAIL_USER, MAIL_PASS and MAIL_FROM are required.',
+          );
         }
+
+        const secure = configService.get<string>('MAIL_SECURE') === 'true';
 
         return {
           transport: {
-            host: configService.get<string>('MAIL_HOST', 'smtp.gmail.com'),
-            port: Number(configService.get<string>('MAIL_PORT', '587')),
-            secure: configService.get<string>('MAIL_SECURE') === 'true',
+            host,
+            port: Number(port),
+            secure,
             auth: { user, pass },
           },
           defaults: {
-            from: configService.get<string>(
-              'MAIL_FROM',
-              'no-reply@hospitalhub.local',
-            ),
+            from,
           },
         };
       },

@@ -51,15 +51,8 @@ const App = () => (
                 }
               />
 
-              {/* Public Guest-Only Routes */}
-              <Route
-                path="/login"
-                element={
-                  <PublicOnlyRoute>
-                    <Login />
-                  </PublicOnlyRoute>
-                }
-              />
+              {/* Public Routes */}
+              <Route path="/login" element={<Login />} />
               <Route
                 path="/register"
                 element={

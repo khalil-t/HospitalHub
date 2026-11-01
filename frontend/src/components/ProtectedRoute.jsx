@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/useAuth';
+import { USER_ROLE } from '@/lib/roles';
 import AccessDenied from './AccessDenied';
 
 export const ProtectedRoute = ({
@@ -30,12 +31,12 @@ export const ProtectedRoute = ({
 
   if (requireExternalDoctor) {
     const isExternal = Boolean(
-      user?.isExternalDoctor || userRoles.includes('external_doctor'),
+      user?.isExternalDoctor || userRoles.includes(USER_ROLE.EXTERNAL_DOCTOR),
     );
     if (!isExternal) {
       return (
         <AccessDenied
-          allowedRoles={['external_doctor']}
+          allowedRoles={[USER_ROLE.EXTERNAL_DOCTOR]}
           userRoles={userRoles}
           message="This portal is strictly reserved for external medical practitioners."
         />

@@ -5,7 +5,7 @@ import { ExternalDoctorsController } from './external-doctors.controller';
 import { ExternalDoctorRequest } from './entities/external-doctor-request.entity';
 import { UsersModule } from '../users/users.module';
 import { PatientsModule } from '../patients/patients.module';
-import { AppMailerModule } from '../mailer/mailer.module';
+import { EmailModule } from '../users/email.module';
 import { EncryptionService } from '../common/encryption.service';
 import { ConfigModule } from '@nestjs/config';
 
@@ -15,7 +15,7 @@ import { ConfigModule } from '@nestjs/config';
     PatientsModule,
     TypeOrmModule.forFeature([ExternalDoctorRequest]),
     UsersModule,
-    AppMailerModule,
+    EmailModule,
   ],
   controllers: [ExternalDoctorsController],
   providers: [ExternalDoctorsService, EncryptionService],

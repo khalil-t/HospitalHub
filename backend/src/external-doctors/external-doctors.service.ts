@@ -14,8 +14,8 @@ import { ReviewExternalDoctorRequestDto } from './dto/review-external-doctor-req
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
 import { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
-import { MailerService } from '@nestjs-modules/mailer';
 import * as crypto from 'crypto';
+import { EmailService } from '../users/email.service';
 import { UsersRepository } from '../users/repositories/user.repository';
 import { PatientsRepository } from '../patients/repositories/PatientsRepository';
 import { Patient } from '../patients/entities/patient.entity';
@@ -31,7 +31,7 @@ export class ExternalDoctorsService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(ExternalDoctorRequest)
     private externalDoctorRequestRepository: Repository<ExternalDoctorRequest>,
     private usersService: UsersService,
-    private mailerService: MailerService,
+    private emailService: EmailService,
     private readonly patientsRepository: PatientsRepository,
     private readonly encryptionService: EncryptionService,
   ) {}
@@ -324,33 +324,21 @@ export class ExternalDoctorsService implements OnModuleInit, OnModuleDestroy {
     user: User,
     tempPassword: string,
   ): Promise<void> {
-    try {
-      await this.mailerService.sendMail({
-        to: request.email,
-        subject: 'Votre demande de médecin externe a été approuvée',
-        html: `
-          <h2>Bienvenue!</h2>
-          <p>Votre demande de médecin externe a été approuvée par l'administrateur.</p>
-          <p><strong>Détails de votre compte temporaire:</strong></p>
-          <ul>
-            <li>Email: ${request.email}</li>
-            <li>Mot de passe temporaire: ${tempPassword}</li>
-            <li>Ce compte expirera dans 24 heures</li>
-          </ul>
-          <p>Vous pouvez maintenant vous connecter et consulter les dossiers médicaux comme les autres médecins.</p>
-          <p>À bientôt!</p>
-        `,
-      });
-    } catch {
-      return;
-    }
+    await this.emailService
+      .sendWelcomeEmail(
+        request.email,
+        `${request.firstName} ${request.lastName}`,
+        request.email,
+        tempPassword,
+      )
+      .catch(() => undefined);
   }
 
   private async sendRejectionEmail(
     request: ExternalDoctorRequest,
   ): Promise<void> {
-    try {
-      await this.mailerService.sendMail({
+    await this.emailService
+      .sendEmail({
         to: request.email,
         subject: 'Votre demande de médecin externe a été refusée',
         html: `
@@ -359,10 +347,8 @@ export class ExternalDoctorsService implements OnModuleInit, OnModuleDestroy {
           ${request.rejectionReason ? `<p><strong>Raison:</strong> ${request.rejectionReason}</p>` : ''}
           <p>Si vous avez des questions, veuillez contacter l'administration.</p>
         `,
-      });
-    } catch {
-      return;
-    }
+      })
+      .catch(() => undefined);
   }
 
   async addPatientForDoctor(doctorEmail: string, patientId: string) {
